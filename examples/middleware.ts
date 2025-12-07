@@ -5,7 +5,7 @@
  * like logging, metrics, and error handling.
  */
 import type { DynamoDBRecord, DynamoDBStreamHandler } from "aws-lambda";
-import { StreamRouter } from "ddb-stream-router";
+import { StreamRouter } from "../src";
 
 // Entity type
 interface User {

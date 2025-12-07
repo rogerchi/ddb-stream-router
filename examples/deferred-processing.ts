@@ -6,7 +6,7 @@
  */
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import type { DynamoDBStreamHandler, SQSHandler } from "aws-lambda";
-import { StreamRouter } from "ddb-stream-router";
+import { StreamRouter } from "../src";
 
 // Entity types
 interface Order {

@@ -5,8 +5,8 @@
  * which provides runtime validation and type-safe parsed data.
  */
 import type { DynamoDBStreamHandler } from "aws-lambda";
-import { StreamRouter } from "ddb-stream-router";
 import { z } from "zod";
+import { StreamRouter } from "../src";
 
 // Define Zod schemas for your entities
 const UserSchema = z.object({

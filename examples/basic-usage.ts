@@ -5,7 +5,7 @@
  * for INSERT, MODIFY, and REMOVE events.
  */
 import type { DynamoDBStreamHandler } from "aws-lambda";
-import { StreamRouter } from "ddb-stream-router";
+import { StreamRouter } from "../src";
 
 // Define your entity types
 interface User {

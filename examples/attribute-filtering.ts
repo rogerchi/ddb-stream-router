@@ -5,7 +5,7 @@
  * specific attribute changes.
  */
 import type { DynamoDBStreamHandler } from "aws-lambda";
-import { StreamRouter } from "ddb-stream-router";
+import { StreamRouter } from "../src";
 
 // Entity types
 interface User {

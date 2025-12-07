@@ -12,6 +12,7 @@ const project = new typescript.TypeScriptProject({
 		"@aws-sdk/client-sqs",
 		"@aws-sdk/client-dynamodb",
 		"aws-sdk-client-mock",
+		"zod",
 	],
 	peerDeps: ["@aws-sdk/util-dynamodb", "@aws-sdk/client-sqs"],
 });

@@ -5,7 +5,7 @@
  * them together, useful for bulk operations or aggregations.
  */
 import type { DynamoDBStreamHandler } from "aws-lambda";
-import { StreamRouter, type HandlerContext } from "ddb-stream-router";
+import { StreamRouter, type HandlerContext } from "../src";
 
 // Entity types
 interface InventoryChange {

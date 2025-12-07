@@ -69,6 +69,10 @@
       "type": "build"
     },
     {
+      "name": "zod",
+      "type": "build"
+    },
+    {
       "name": "@aws-sdk/client-sqs",
       "type": "peer"
     },

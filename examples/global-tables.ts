@@ -5,7 +5,7 @@
  * where streams are replicated across regions.
  */
 import type { DynamoDBStreamHandler } from "aws-lambda";
-import { StreamRouter } from "ddb-stream-router";
+import { StreamRouter } from "../src";
 
 // Entity type
 interface User {
