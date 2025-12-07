@@ -529,4 +529,272 @@ describe("Deferred Processing with SQS", () => {
 			expect(result.batchItemFailures[0].itemIdentifier).toBe("msg-2");
 		});
 	});
+
+	describe("Deferred Batch Processing", () => {
+		test("processDeferred collects records for batch handlers", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			const handler = jest.fn();
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("USER#");
+
+			router.insert(isUser, handler, { batch: true }).defer();
+
+			const handlerId = router.handlers[0].id;
+
+			const record1 = createStreamRecord(
+				"INSERT",
+				{ pk: "USER#1", sk: "profile" },
+				{ pk: "USER#1", sk: "profile", name: "Alice" },
+			);
+			const record2 = createStreamRecord(
+				"INSERT",
+				{ pk: "USER#2", sk: "profile" },
+				{ pk: "USER#2", sk: "profile", name: "Bob" },
+			);
+
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify({ handlerId, record: record1 }),
+					},
+					{
+						messageId: "msg-2",
+						body: JSON.stringify({ handlerId, record: record2 }),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent);
+
+			expect(result.processed).toBe(2);
+			expect(result.succeeded).toBe(2);
+			// Handler should be called once with both records
+			expect(handler).toHaveBeenCalledTimes(1);
+			const batchRecords = handler.mock.calls[0][0];
+			expect(batchRecords).toHaveLength(2);
+			expect(batchRecords[0].newImage).toHaveProperty("name", "Alice");
+			expect(batchRecords[1].newImage).toHaveProperty("name", "Bob");
+		});
+
+		test("processDeferred groups batch records by batchKey", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			const handler = jest.fn();
+			const isAudit = (
+				record: unknown,
+			): record is { pk: string; userId: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("AUDIT#");
+
+			router
+				.insert(isAudit, handler, { batch: true, batchKey: "userId" })
+				.defer();
+
+			const handlerId = router.handlers[0].id;
+
+			const record1 = createStreamRecord(
+				"INSERT",
+				{ pk: "AUDIT#1", sk: "log" },
+				{ pk: "AUDIT#1", sk: "log", userId: "user-a", action: "login" },
+			);
+			const record2 = createStreamRecord(
+				"INSERT",
+				{ pk: "AUDIT#2", sk: "log" },
+				{ pk: "AUDIT#2", sk: "log", userId: "user-b", action: "view" },
+			);
+			const record3 = createStreamRecord(
+				"INSERT",
+				{ pk: "AUDIT#3", sk: "log" },
+				{ pk: "AUDIT#3", sk: "log", userId: "user-a", action: "logout" },
+			);
+
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify({ handlerId, record: record1 }),
+					},
+					{
+						messageId: "msg-2",
+						body: JSON.stringify({ handlerId, record: record2 }),
+					},
+					{
+						messageId: "msg-3",
+						body: JSON.stringify({ handlerId, record: record3 }),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent);
+
+			expect(result.processed).toBe(3);
+			expect(result.succeeded).toBe(3);
+			// Handler should be called twice: once for user-a (2 records), once for user-b (1 record)
+			expect(handler).toHaveBeenCalledTimes(2);
+
+			const calls = handler.mock.calls.map((call) => call[0]);
+			const userABatch = calls.find((batch) => batch.length === 2);
+			const userBBatch = calls.find((batch) => batch.length === 1);
+
+			expect(userABatch).toBeDefined();
+			expect(userBBatch).toBeDefined();
+		});
+
+		test("processDeferred reports all message IDs on batch failure", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			const handler = jest.fn().mockImplementation(() => {
+				throw new Error("Batch handler failed");
+			});
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" && record !== null && "pk" in record;
+
+			router.insert(isUser, handler, { batch: true }).defer();
+
+			const handlerId = router.handlers[0].id;
+
+			const record1 = createStreamRecord(
+				"INSERT",
+				{ pk: "USER#1", sk: "profile" },
+				{ pk: "USER#1", sk: "profile" },
+			);
+			const record2 = createStreamRecord(
+				"INSERT",
+				{ pk: "USER#2", sk: "profile" },
+				{ pk: "USER#2", sk: "profile" },
+			);
+
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify({ handlerId, record: record1 }),
+					},
+					{
+						messageId: "msg-2",
+						body: JSON.stringify({ handlerId, record: record2 }),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent, {
+				reportBatchItemFailures: true,
+			});
+
+			// Both messages should be reported as failed since they're in the same batch
+			expect(result.batchItemFailures).toHaveLength(2);
+			expect(result.batchItemFailures).toContainEqual({
+				itemIdentifier: "msg-1",
+			});
+			expect(result.batchItemFailures).toContainEqual({
+				itemIdentifier: "msg-2",
+			});
+		});
+
+		test("processDeferred handles mixed batch and non-batch handlers", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			const batchHandler = jest.fn();
+			const nonBatchHandler = jest.fn();
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("USER#");
+
+			const isOrder = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("ORDER#");
+
+			router.insert(isUser, batchHandler, { batch: true }).defer();
+			router.insert(isOrder, nonBatchHandler).defer();
+
+			const userHandlerId = router.handlers[0].id;
+			const orderHandlerId = router.handlers[1].id;
+
+			const userRecord1 = createStreamRecord(
+				"INSERT",
+				{ pk: "USER#1", sk: "profile" },
+				{ pk: "USER#1", sk: "profile" },
+			);
+			const userRecord2 = createStreamRecord(
+				"INSERT",
+				{ pk: "USER#2", sk: "profile" },
+				{ pk: "USER#2", sk: "profile" },
+			);
+			const orderRecord = createStreamRecord(
+				"INSERT",
+				{ pk: "ORDER#1", sk: "details" },
+				{ pk: "ORDER#1", sk: "details" },
+			);
+
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify({
+							handlerId: userHandlerId,
+							record: userRecord1,
+						}),
+					},
+					{
+						messageId: "msg-2",
+						body: JSON.stringify({
+							handlerId: orderHandlerId,
+							record: orderRecord,
+						}),
+					},
+					{
+						messageId: "msg-3",
+						body: JSON.stringify({
+							handlerId: userHandlerId,
+							record: userRecord2,
+						}),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent);
+
+			expect(result.processed).toBe(3);
+			expect(result.succeeded).toBe(3);
+
+			// Batch handler called once with 2 records
+			expect(batchHandler).toHaveBeenCalledTimes(1);
+			expect(batchHandler.mock.calls[0][0]).toHaveLength(2);
+
+			// Non-batch handler called once (immediately)
+			expect(nonBatchHandler).toHaveBeenCalledTimes(1);
+		});
+	});
 });

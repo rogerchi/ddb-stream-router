@@ -855,6 +855,11 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	/**
 	 * Process deferred records from an SQS event.
 	 * Executes only the specific deferred handler that enqueued each record.
+	 *
+	 * For batch handlers, records are collected and grouped by batch key before
+	 * the handler is invoked. This allows batch processing even when records
+	 * arrive via SQS from deferred handlers.
+	 *
 	 * @param sqsEvent The SQS event containing deferred records
 	 * @param options Processing options
 	 * @returns ProcessingResult or BatchItemFailuresResponse based on options
@@ -884,6 +889,15 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		// Track all failed message IDs for SQS batch item failures
 		const failedMessageIds: string[] = [];
 
+		// Collect batch records: Map<handlerId, Map<batchKey, Array<{batchRecord, messageId}>>>
+		const batchCollector = new Map<
+			string,
+			Map<
+				string,
+				Array<{ batchRecord: Record<string, unknown>; messageId?: string }>
+			>
+		>();
+
 		for (const sqsRecord of sqsEvent.Records) {
 			result.processed++;
 			const recordId = sqsRecord.messageId ?? `deferred_${result.processed}`;
@@ -904,10 +918,38 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				// Re-match to get parsed data if using a parser
 				const { parsedData } = this.matchHandler(handler, matchingImage);
 
-				// Execute the handler
-				await this.invokeHandler(handler, record, parsedData, ctx);
-
-				result.succeeded++;
+				// Check if batch mode is enabled
+				const handlerOptions = handler.options as BatchHandlerOptions;
+				if (handlerOptions.batch) {
+					// Collect for batch processing
+					if (!batchCollector.has(handler.id)) {
+						batchCollector.set(handler.id, new Map());
+					}
+					const handlerBatches = batchCollector.get(handler.id);
+					if (handlerBatches) {
+						const batchKey = this.getBatchKey(handler, record, parsedData);
+						if (!handlerBatches.has(batchKey)) {
+							handlerBatches.set(batchKey, []);
+						}
+						const batchRecord = this.buildBatchRecord(
+							handler,
+							record,
+							parsedData,
+							ctx,
+						);
+						const batchRecords = handlerBatches.get(batchKey);
+						if (batchRecords) {
+							batchRecords.push({
+								batchRecord,
+								messageId: sqsRecord.messageId,
+							});
+						}
+					}
+				} else {
+					// Execute non-batch handler immediately
+					await this.invokeHandler(handler, record, parsedData, ctx);
+					result.succeeded++;
+				}
 			} catch (error) {
 				result.failed++;
 				result.errors.push({
@@ -919,6 +961,34 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				// Track failed message ID for batch item failures
 				if (sqsRecord.messageId) {
 					failedMessageIds.push(sqsRecord.messageId);
+				}
+			}
+		}
+
+		// Execute batch handlers after all records are collected
+		for (const [handlerId, batchesByKey] of batchCollector) {
+			const handler = this._handlers.find((h) => h.id === handlerId);
+			if (!handler) continue;
+
+			for (const [, recordsWithIds] of batchesByKey) {
+				try {
+					const records = recordsWithIds.map((r) => r.batchRecord);
+					await handler.handler(records);
+					// Mark all records in this batch as succeeded
+					result.succeeded += recordsWithIds.length;
+				} catch (error) {
+					result.failed += recordsWithIds.length;
+					result.errors.push({
+						recordId: `batch_${handlerId}`,
+						error: error instanceof Error ? error : new Error(String(error)),
+						phase: "handler",
+					});
+					// Track all message IDs in the failed batch
+					for (const { messageId } of recordsWithIds) {
+						if (messageId) {
+							failedMessageIds.push(messageId);
+						}
+					}
 				}
 			}
 		}
