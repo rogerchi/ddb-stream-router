@@ -158,20 +158,20 @@
 - [x] 9. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Implement batch processing
-  - [ ] 10.1 Implement batch record collection
+- [x] 10. Implement batch processing
+  - [x] 10.1 Implement batch record collection
     - Collect all matching records when batch option is true
     - Invoke handler once with array of records after all records processed
     - Handle single-element arrays correctly
     - _Requirements: 10.1, 10.4, 10.5_
-  - [ ] 10.2 Implement batch key grouping
+  - [x] 10.2 Implement batch key grouping
     - Group records by batchKey function result or attribute value
     - Invoke handler once per unique key with grouped records
     - _Requirements: 10.2, 10.3_
-  - [ ] 10.3 Write property test for batch mode collection
+  - [x] 10.3 Write property test for batch mode collection
     - **Property 18: Batch mode collects all matching records**
     - **Validates: Requirements 10.1, 10.4, 10.5**
-  - [ ] 10.4 Write property test for batch key grouping
+  - [x] 10.4 Write property test for batch key grouping
     - **Property 19: Batch key groups records correctly**
     - **Validates: Requirements 10.2, 10.3**
 

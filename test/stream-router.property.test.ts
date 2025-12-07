@@ -1105,3 +1105,287 @@ describe("Multiple Attribute Filter Properties", () => {
 		expect(handler).not.toHaveBeenCalled();
 	});
 });
+
+describe("Batch Processing Properties", () => {
+	/**
+	 * **Feature: dynamodb-stream-router, Property 18: Batch mode collects all matching records**
+	 * **Validates: Requirements 10.1, 10.4, 10.5**
+	 *
+	 * For any handler registered with batch mode enabled, when processing an event
+	 * with N matching records, the handler should be invoked exactly once with an
+	 * array containing all N records.
+	 */
+	test("Property 18: Batch mode collects all matching records", async () => {
+		await fc.assert(
+			fc.asyncProperty(
+				fc.integer({ min: 1, max: 10 }),
+				async (recordCount) => {
+					const router = new StreamRouter();
+					const handler = jest.fn();
+					const discriminator = (record: unknown): record is { id: string } =>
+						typeof record === "object" && record !== null && "id" in record;
+
+					router.insert(discriminator, handler, { batch: true });
+
+					const records = Array.from({ length: recordCount }, (_, i) =>
+						createMockRecord("INSERT", { id: `item_${i}` }),
+					);
+					const event = createMockEvent(records);
+
+					await router.process(event);
+
+					// Handler should be called exactly once
+					expect(handler).toHaveBeenCalledTimes(1);
+
+					// Handler should receive an array with all matching records
+					const calledWith = handler.mock.calls[0][0];
+					expect(Array.isArray(calledWith)).toBe(true);
+					expect(calledWith).toHaveLength(recordCount);
+
+					return true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 18: Batch mode with single record returns single-element array", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.insert(discriminator, handler, { batch: true });
+
+		const record = createMockRecord("INSERT", { id: "single" });
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		const calledWith = handler.mock.calls[0][0];
+		expect(Array.isArray(calledWith)).toBe(true);
+		expect(calledWith).toHaveLength(1);
+	});
+
+	test("Property 18: Batch mode only collects matching records", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { type: string } =>
+			typeof record === "object" &&
+			record !== null &&
+			"type" in record &&
+			(record as { type: string }).type === "target";
+
+		router.insert(discriminator, handler, { batch: true });
+
+		const records = [
+			createMockRecord("INSERT", { type: "target", id: "1" }),
+			createMockRecord("INSERT", { type: "other", id: "2" }),
+			createMockRecord("INSERT", { type: "target", id: "3" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		const calledWith = handler.mock.calls[0][0];
+		expect(calledWith).toHaveLength(2); // Only 2 matching records
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 19: Batch key groups records correctly**
+	 * **Validates: Requirements 10.2, 10.3**
+	 *
+	 * For any handler registered with a batchKey, records should be grouped by the
+	 * key value, and the handler should be invoked once per unique key with only
+	 * the records matching that key.
+	 */
+	test("Property 19: Batch key groups records by attribute value", async () => {
+		await fc.assert(
+			fc.asyncProperty(
+				fc.integer({ min: 2, max: 5 }),
+				fc.integer({ min: 1, max: 3 }),
+				async (groupCount, recordsPerGroup) => {
+					const router = new StreamRouter();
+					const handler = jest.fn();
+					const discriminator = (
+						record: unknown,
+					): record is { groupId: string; id: string } =>
+						typeof record === "object" && record !== null && "groupId" in record;
+
+					router.insert(discriminator, handler, {
+						batch: true,
+						batchKey: "groupId",
+					});
+
+					// Create records with different groupIds
+					const records: DynamoDBRecord[] = [];
+					for (let g = 0; g < groupCount; g++) {
+						for (let r = 0; r < recordsPerGroup; r++) {
+							records.push(
+								createMockRecord("INSERT", {
+									groupId: `group_${g}`,
+									id: `item_${g}_${r}`,
+								}),
+							);
+						}
+					}
+					const event = createMockEvent(records);
+
+					await router.process(event);
+
+					// Handler should be called once per unique group
+					expect(handler).toHaveBeenCalledTimes(groupCount);
+
+					// Each call should have the correct number of records
+					for (let i = 0; i < groupCount; i++) {
+						const calledWith = handler.mock.calls[i][0];
+						expect(calledWith).toHaveLength(recordsPerGroup);
+					}
+
+					return true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 19: Batch key function groups records correctly", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (
+			record: unknown,
+		): record is { category: string; id: string } =>
+			typeof record === "object" && record !== null && "category" in record;
+
+		// Use a function to extract the batch key
+		router.insert(discriminator, handler, {
+			batch: true,
+			batchKey: (record: unknown) =>
+				(record as { category: string }).category.toUpperCase(),
+		});
+
+		const records = [
+			createMockRecord("INSERT", { category: "electronics", id: "1" }),
+			createMockRecord("INSERT", { category: "Electronics", id: "2" }), // Same when uppercased
+			createMockRecord("INSERT", { category: "books", id: "3" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		// Should be 2 groups: ELECTRONICS and BOOKS
+		expect(handler).toHaveBeenCalledTimes(2);
+
+		// Find the ELECTRONICS group call
+		const electronicsCall = handler.mock.calls.find(
+			(call) => call[0].length === 2,
+		);
+		expect(electronicsCall).toBeDefined();
+		expect(electronicsCall[0]).toHaveLength(2);
+	});
+
+	test("Property 19: Batch mode without batchKey groups all records together", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		// batch: true but no batchKey - all records in one group
+		router.insert(discriminator, handler, { batch: true });
+
+		const records = [
+			createMockRecord("INSERT", { id: "1", category: "a" }),
+			createMockRecord("INSERT", { id: "2", category: "b" }),
+			createMockRecord("INSERT", { id: "3", category: "c" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		// Should be called once with all records
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler.mock.calls[0][0]).toHaveLength(3);
+	});
+
+	test("Batch mode works with MODIFY events", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.modify(discriminator, handler, { batch: true });
+
+		const records = [
+			createMockRecord("MODIFY", { id: "1", value: "new1" }, { id: "1", value: "old1" }),
+			createMockRecord("MODIFY", { id: "2", value: "new2" }, { id: "2", value: "old2" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		const calledWith = handler.mock.calls[0][0];
+		expect(calledWith).toHaveLength(2);
+		// Each batch record should have oldImage and newImage
+		expect(calledWith[0]).toHaveProperty("oldImage");
+		expect(calledWith[0]).toHaveProperty("newImage");
+	});
+
+	test("Batch mode works with REMOVE events", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.remove(discriminator, handler, { batch: true });
+
+		const records = [
+			createMockRecord("REMOVE", undefined, { id: "1" }),
+			createMockRecord("REMOVE", undefined, { id: "2" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		const calledWith = handler.mock.calls[0][0];
+		expect(calledWith).toHaveLength(2);
+		// Each batch record should have oldImage
+		expect(calledWith[0]).toHaveProperty("oldImage");
+	});
+
+	test("Non-batch handlers still execute immediately", async () => {
+		const router = new StreamRouter();
+		const executionOrder: string[] = [];
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		// Non-batch handler
+		router.insert(discriminator, (newImage) => {
+			executionOrder.push(`immediate_${(newImage as { id: string }).id}`);
+		});
+
+		// Batch handler
+		router.insert(discriminator, (records: unknown) => {
+			executionOrder.push(`batch_${(records as Array<{ newImage: { id: string } }>).length}`);
+		}, { batch: true });
+
+		const records = [
+			createMockRecord("INSERT", { id: "1" }),
+			createMockRecord("INSERT", { id: "2" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		// Immediate handlers execute during record processing
+		// Batch handlers execute after all records are processed
+		expect(executionOrder).toEqual([
+			"immediate_1",
+			"immediate_2",
+			"batch_2",
+		]);
+	});
+});

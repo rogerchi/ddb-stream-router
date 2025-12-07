@@ -301,6 +301,61 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	}
 
 	/**
+	 * Builds a batch record entry for batch mode handlers.
+	 */
+	private buildBatchRecord(
+		handler: RegisteredHandler,
+		record: DynamoDBRecord,
+		parsedData: unknown | undefined,
+		ctx: HandlerContext,
+	): Record<string, unknown> {
+		const newImage =
+			parsedData ?? this.unmarshallImage(record.dynamodb?.NewImage);
+		const oldImage = this.unmarshallImage(record.dynamodb?.OldImage);
+		const keys = this.unmarshallImage(record.dynamodb?.Keys);
+
+		switch (ctx.eventName) {
+			case "INSERT":
+				if (this._streamViewType === "KEYS_ONLY") {
+					return { keys, ctx };
+				}
+				return { newImage, ctx };
+			case "MODIFY": {
+				if (this._streamViewType === "KEYS_ONLY") {
+					return { keys, ctx };
+				}
+				if (this._streamViewType === "NEW_IMAGE") {
+					return { oldImage: undefined, newImage, ctx };
+				}
+				if (this._streamViewType === "OLD_IMAGE") {
+					return { oldImage, newImage: undefined, ctx };
+				}
+				// NEW_AND_OLD_IMAGES - need to re-parse oldImage if parser
+				let parsedOldImage: unknown = oldImage;
+				if (handler.isParser && oldImage) {
+					const parser = handler.matcher as Parser<unknown>;
+					const result = parser.safeParse(oldImage);
+					if (result.success) {
+						parsedOldImage = result.data;
+					}
+				}
+				return {
+					oldImage: parsedOldImage,
+					newImage: parsedData ?? newImage,
+					ctx,
+				};
+			}
+			case "REMOVE":
+				if (this._streamViewType === "KEYS_ONLY") {
+					return { keys, ctx };
+				}
+				return { oldImage: parsedData ?? oldImage, ctx };
+			default:
+				return { ctx };
+		}
+	}
+
+	/**
 	 * Invokes a handler with the appropriate arguments based on event type and stream view type.
 	 */
 	private async invokeHandler(
@@ -353,6 +408,37 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	}
 
 	/**
+	 * Gets the batch key for a record based on handler options.
+	 */
+	private getBatchKey(
+		handler: RegisteredHandler,
+		record: DynamoDBRecord,
+		parsedData: unknown | undefined,
+	): string {
+		const options = handler.options as BatchHandlerOptions;
+		if (!options.batchKey) {
+			return "__default__";
+		}
+
+		const imageData =
+			parsedData ??
+			this.unmarshallImage(record.dynamodb?.NewImage) ??
+			this.unmarshallImage(record.dynamodb?.OldImage);
+
+		if (typeof options.batchKey === "function") {
+			return options.batchKey(imageData);
+		}
+
+		// batchKey is a string - use it as attribute name
+		if (imageData && typeof imageData === "object") {
+			const value = (imageData as Record<string, unknown>)[options.batchKey];
+			return String(value ?? "__undefined__");
+		}
+
+		return "__undefined__";
+	}
+
+	/**
 	 * Process a DynamoDB Stream event through the router.
 	 */
 	async process(event: DynamoDBStreamEvent): Promise<ProcessingResult> {
@@ -362,6 +448,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			failed: 0,
 			errors: [],
 		};
+
+		// Collect batch records: Map<handlerId, Map<batchKey, Array<batchRecord>>>
+		const batchCollector = new Map<
+			string,
+			Map<string, Array<Record<string, unknown>>>
+		>();
 
 		for (const record of event.Records) {
 			result.processed++;
@@ -405,7 +497,35 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 								continue; // Skip handler if attribute filter doesn't match
 							}
 						}
-						await this.invokeHandler(handler, record, parsedData, ctx);
+
+						// Check if batch mode is enabled
+						const options = handler.options as BatchHandlerOptions;
+						if (options.batch) {
+							// Collect for batch processing
+							if (!batchCollector.has(handler.id)) {
+								batchCollector.set(handler.id, new Map());
+							}
+							const handlerBatches = batchCollector.get(handler.id);
+							if (handlerBatches) {
+								const batchKey = this.getBatchKey(handler, record, parsedData);
+								if (!handlerBatches.has(batchKey)) {
+									handlerBatches.set(batchKey, []);
+								}
+								const batchRecord = this.buildBatchRecord(
+									handler,
+									record,
+									parsedData,
+									ctx,
+								);
+								const batchRecords = handlerBatches.get(batchKey);
+								if (batchRecords) {
+									batchRecords.push(batchRecord);
+								}
+							}
+						} else {
+							// Immediate execution for non-batch handlers
+							await this.invokeHandler(handler, record, parsedData, ctx);
+						}
 					}
 				}
 
@@ -417,6 +537,25 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					error: error instanceof Error ? error : new Error(String(error)),
 					phase: "handler",
 				});
+			}
+		}
+
+		// Execute batch handlers after all records are processed
+		for (const [handlerId, batchesByKey] of batchCollector) {
+			const handler = this._handlers.find((h) => h.id === handlerId);
+			if (!handler) continue;
+
+			for (const [, records] of batchesByKey) {
+				try {
+					await handler.handler(records);
+				} catch (error) {
+					result.failed++;
+					result.errors.push({
+						recordId: `batch_${handlerId}`,
+						error: error instanceof Error ? error : new Error(String(error)),
+						phase: "handler",
+					});
+				}
 			}
 		}
 
