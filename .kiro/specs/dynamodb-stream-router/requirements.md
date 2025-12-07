@@ -23,6 +23,9 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 - **Unmarshall**: The process of converting DynamoDB JSON format to native JavaScript objects (controlled by unmarshall option, defaults to true)
 - **Same_Region_Only**: A configuration option that filters records to only process those originating from the same AWS region as the Lambda function (useful for global tables)
 - **Event_Source_ARN**: The Amazon Resource Name identifying the DynamoDB stream that triggered the event, contains the region information
+- **Batch_Item_Failures**: A Lambda response format that reports partial batch failures, allowing Lambda to retry only the failed records from the first failure point in an ordered stream
+- **Defer_Queue**: An SQS queue where DynamoDB stream records can be enqueued for deferred processing, allowing the same handler code to process records asynchronously
+- **Sequence_Number**: A unique identifier for each record in a DynamoDB stream shard, used to identify the position of failed records for partial batch responses
 
 ## Requirements
 
@@ -167,7 +170,33 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 3. WHEN sameRegionOnly is enabled and a record's Event_Source_ARN region matches AWS_REGION THEN the Stream_Router SHALL process the record normally
 4. WHEN sameRegionOnly is enabled and AWS_REGION is not set THEN the Stream_Router SHALL process all records (fail-open behavior)
 
-### Requirement 14
+### Requirement 15
+
+**User Story:** As a developer, I want to return batch item failures for partial batch responses, so that Lambda can retry only the failed records from the first failure point in the stream.
+
+#### Acceptance Criteria
+
+1. WHEN a developer calls process() with reportBatchItemFailures option set to true THEN the Stream_Router SHALL return a response containing batchItemFailures array
+2. WHEN a handler throws an error during processing THEN the Stream_Router SHALL include the failed record's sequence number in the batchItemFailures array
+3. WHEN multiple records fail THEN the Stream_Router SHALL return only the first failed record's sequence number (since streams are ordered and must be processed sequentially)
+4. WHEN all records process successfully THEN the Stream_Router SHALL return an empty batchItemFailures array
+5. WHEN reportBatchItemFailures is not specified THEN the Stream_Router SHALL default to the standard ProcessingResult response format
+
+### Requirement 16
+
+**User Story:** As a developer, I want to defer record processing to an SQS queue, so that I can handle records asynchronously and use the same handler code for both immediate and deferred processing.
+
+#### Acceptance Criteria
+
+1. WHEN a developer creates a Stream_Router with a deferQueue option THEN the Stream_Router SHALL use that queue as the default defer destination for all handlers
+2. WHEN a developer registers a handler with a deferQueue option THEN the Stream_Router SHALL use that queue for deferring records matched by that specific handler
+3. WHEN a handler's deferQueue is specified THEN the handler-level deferQueue SHALL override the router-level deferQueue
+4. WHEN a handler calls the defer() function in the handler context THEN the Stream_Router SHALL enqueue the current record to the configured defer queue
+5. WHEN a record is deferred THEN the Stream_Router SHALL serialize the DynamoDB stream record and send it to the SQS queue
+6. WHEN processing a deferred record from SQS THEN the Stream_Router SHALL deserialize the record and invoke the matching handlers as if it were a direct stream event
+7. WHEN no deferQueue is configured and defer() is called THEN the Stream_Router SHALL throw a ConfigurationError
+
+### Requirement 17
 
 **User Story:** As a developer, I want comprehensive test coverage for the Stream Router, so that I can trust the library behaves correctly in production.
 
@@ -181,3 +210,5 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 6. WHEN integration tests are executed THEN the test suite SHALL verify INSERT, MODIFY, and REMOVE events trigger appropriate handlers
 7. WHEN integration tests are executed THEN the test suite SHALL verify stream view type configurations produce correct handler signatures
 8. WHEN unit tests are executed THEN the test suite SHALL verify sameRegionOnly filtering correctly skips cross-region records
+9. WHEN unit tests are executed THEN the test suite SHALL verify batchItemFailures response format when reportBatchItemFailures is enabled
+10. WHEN unit tests are executed THEN the test suite SHALL verify defer queue functionality enqueues records correctly

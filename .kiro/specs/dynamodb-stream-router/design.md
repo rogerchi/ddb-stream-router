@@ -79,6 +79,12 @@ interface StreamRouterOptions {
   streamViewType?: StreamViewType;
   unmarshall?: boolean;  // Whether to unmarshall DynamoDB JSON to native JS (default: true)
   sameRegionOnly?: boolean;  // Only process records from same region as Lambda (default: false)
+  deferQueue?: string;  // Default SQS queue URL for deferred processing
+}
+
+// Process options for controlling response format
+interface ProcessOptions {
+  reportBatchItemFailures?: boolean;  // Return batchItemFailures format for partial batch response
 }
 
 // Attribute change types for MODIFY filtering
@@ -99,6 +105,7 @@ interface ModifyHandlerOptions {
 // Generic handler options
 interface HandlerOptions {
   batch?: boolean;  // When true, handler receives all matching records as array
+  deferQueue?: string;  // SQS queue URL for deferred processing (overrides router-level)
 }
 
 // Batch handler options with grouping key
@@ -184,6 +191,8 @@ interface HandlerContext {
   eventName: 'INSERT' | 'MODIFY' | 'REMOVE';
   eventID?: string;
   eventSourceARN?: string;
+  sequenceNumber?: string;
+  defer: () => Promise<void>;  // Enqueue record to defer queue for later processing
 }
 
 // Handler signatures per stream view type
@@ -253,7 +262,10 @@ class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
   use(middleware: MiddlewareFunction): this;
   
   // Event processing
-  process(event: DynamoDBStreamEvent): Promise<ProcessingResult>;
+  process(event: DynamoDBStreamEvent, options?: ProcessOptions): Promise<ProcessingResult | BatchItemFailuresResponse>;
+  
+  // Process deferred records from SQS
+  processDeferred(sqsEvent: SQSEvent): Promise<ProcessingResult>;
 }
 ```
 
@@ -265,6 +277,11 @@ interface ProcessingResult {
   succeeded: number;
   failed: number;
   errors: Array<{ recordId: string; error: Error }>;
+}
+
+// Batch item failures response for Lambda partial batch response
+interface BatchItemFailuresResponse {
+  batchItemFailures: Array<{ itemIdentifier: string }>;
 }
 ```
 
@@ -458,6 +475,42 @@ interface DiffResult {
 *For any* StreamRouter created without specifying sameRegionOnly, the router should process all records regardless of their origin region.
 
 **Validates: Requirements 13.2**
+
+### Property 25: Batch item failures returns first failed record
+
+*For any* event where one or more records fail processing, when reportBatchItemFailures is true, the router should return a batchItemFailures array containing only the first failed record's sequence number.
+
+**Validates: Requirements 15.2, 15.3**
+
+### Property 26: Batch item failures returns empty array on success
+
+*For any* event where all records process successfully, when reportBatchItemFailures is true, the router should return an empty batchItemFailures array.
+
+**Validates: Requirements 15.4**
+
+### Property 27: Defer enqueues record to configured queue
+
+*For any* handler that calls defer(), the router should serialize the current DynamoDB stream record and send it to the configured defer queue (handler-level or router-level).
+
+**Validates: Requirements 16.4, 16.5**
+
+### Property 28: Handler-level deferQueue overrides router-level
+
+*For any* handler with a deferQueue option, when defer() is called, the record should be sent to the handler's queue, not the router's default queue.
+
+**Validates: Requirements 16.3**
+
+### Property 29: Defer without queue throws ConfigurationError
+
+*For any* handler that calls defer() when no deferQueue is configured at either handler or router level, the router should throw a ConfigurationError.
+
+**Validates: Requirements 16.7**
+
+### Property 30: Deferred records process through same handlers
+
+*For any* record that was deferred and later processed via processDeferred(), the router should invoke the same matching handlers as if it were a direct stream event.
+
+**Validates: Requirements 16.6**
 
 ## Error Handling
 

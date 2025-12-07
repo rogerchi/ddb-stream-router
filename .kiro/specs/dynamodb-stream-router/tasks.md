@@ -178,36 +178,84 @@
 - [ ] 11. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Create public API exports
-  - [ ] 12.1 Export all public types and classes
+- [ ] 12. Implement batch item failures response
+  - [ ] 12.1 Add ProcessOptions and BatchItemFailuresResponse types
+    - Add reportBatchItemFailures option to process() method
+    - Define BatchItemFailuresResponse interface with batchItemFailures array
+    - _Requirements: 15.1, 15.5_
+  - [ ] 12.2 Implement batch item failures logic
+    - Track first failed record's sequence number during processing
+    - Return BatchItemFailuresResponse when reportBatchItemFailures is true
+    - Return empty array when all records succeed
+    - _Requirements: 15.2, 15.3, 15.4_
+  - [ ] 12.3 Write property test for batch item failures first error
+    - **Property 25: Batch item failures returns first failed record**
+    - **Validates: Requirements 15.2, 15.3**
+  - [ ] 12.4 Write property test for batch item failures success
+    - **Property 26: Batch item failures returns empty array on success**
+    - **Validates: Requirements 15.4**
+
+- [ ] 13. Implement defer queue functionality
+  - [ ] 13.1 Add defer queue configuration
+    - Add deferQueue option to StreamRouterOptions
+    - Add deferQueue option to HandlerOptions
+    - Add defer() function to HandlerContext
+    - _Requirements: 16.1, 16.2, 16.3_
+  - [ ] 13.2 Implement defer() function
+    - Serialize DynamoDB stream record to JSON
+    - Send message to configured SQS queue using AWS SDK
+    - Throw ConfigurationError if no queue configured
+    - _Requirements: 16.4, 16.5, 16.7_
+  - [ ] 13.3 Implement processDeferred() method
+    - Parse SQS event and extract DynamoDB stream records
+    - Process records through same handler matching logic
+    - _Requirements: 16.6_
+  - [ ] 13.4 Write property test for defer enqueues record
+    - **Property 27: Defer enqueues record to configured queue**
+    - **Validates: Requirements 16.4, 16.5**
+  - [ ] 13.5 Write property test for handler-level deferQueue override
+    - **Property 28: Handler-level deferQueue overrides router-level**
+    - **Validates: Requirements 16.3**
+  - [ ] 13.6 Write property test for defer without queue error
+    - **Property 29: Defer without queue throws ConfigurationError**
+    - **Validates: Requirements 16.7**
+  - [ ] 13.7 Write property test for deferred record processing
+    - **Property 30: Deferred records process through same handlers**
+    - **Validates: Requirements 16.6**
+
+- [ ] 14. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 15. Create public API exports
+  - [ ] 15.1 Export all public types and classes
     - Export StreamRouter class
     - Export all type definitions (StreamViewType, Matcher, Handler types, etc.)
     - Export error classes (ConfigurationError)
     - Create clean index.ts barrel file
     - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 13. Integration tests with DynamoDB Local
-  - [ ] 13.1 Set up DynamoDB Local test infrastructure
+- [ ] 16. Integration tests with DynamoDB Local
+  - [ ] 16.1 Set up DynamoDB Local test infrastructure
     - Configure @shelf/jest-dynamodb or similar
     - Create test table with streams enabled
     - Set up test utilities for stream event capture
-    - _Requirements: 12.5_
-  - [ ] 13.2 Write integration tests for INSERT events
+    - _Requirements: 17.5_
+  - [ ] 16.2 Write integration tests for INSERT events
     - Test INSERT event processing with discriminators and parsers
     - Verify handler invocation with correct data
-    - _Requirements: 12.6_
-  - [ ] 13.3 Write integration tests for MODIFY events
+    - _Requirements: 17.6_
+  - [ ] 16.3 Write integration tests for MODIFY events
     - Test MODIFY event processing with attribute filters
     - Verify oldImage and newImage handling
-    - _Requirements: 12.6_
-  - [ ] 13.4 Write integration tests for REMOVE events
+    - _Requirements: 17.6_
+  - [ ] 16.4 Write integration tests for REMOVE events
     - Test REMOVE event processing with discriminators and parsers
     - Verify handler invocation with correct data
-    - _Requirements: 12.6_
-  - [ ] 13.5 Write integration tests for stream view types
+    - _Requirements: 17.6_
+  - [ ] 16.5 Write integration tests for stream view types
     - Test all four stream view type configurations
     - Verify correct data availability per configuration
-    - _Requirements: 12.7_
+    - _Requirements: 17.7_
 
-- [ ] 14. Final Checkpoint - Ensure all tests pass
+- [ ] 17. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
