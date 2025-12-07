@@ -182,7 +182,7 @@ describe("Event Processing", () => {
 	});
 
 	describe("Multiple Handlers", () => {
-		test("Multiple handlers matching same record", async () => {
+		test("Multiple handlers matching same INSERT record both execute", async () => {
 			const router = new StreamRouter();
 			const handler1 = jest.fn();
 			const handler2 = jest.fn();
@@ -215,6 +215,121 @@ describe("Event Processing", () => {
 
 			expect(handler1).toHaveBeenCalledTimes(1);
 			expect(handler2).toHaveBeenCalledTimes(1);
+		});
+
+		test("Multiple handlers matching same MODIFY record both execute", async () => {
+			const router = new StreamRouter();
+			const handler1 = jest.fn();
+			const handler2 = jest.fn();
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("user#");
+
+			const hasEmail = (record: unknown): record is { email: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"email" in record &&
+				typeof (record as { email: unknown }).email === "string";
+
+			router.onModify(isUser, handler1);
+			router.onModify(hasEmail, handler2);
+
+			const oldItem = {
+				pk: "user#1",
+				sk: "profile",
+				email: "old@test.com",
+				name: "Old",
+			};
+			const newItem = {
+				pk: "user#1",
+				sk: "profile",
+				email: "new@test.com",
+				name: "New",
+			};
+			const record = createStreamRecord(
+				"MODIFY",
+				{ pk: "user#1", sk: "profile" },
+				newItem,
+				oldItem,
+			);
+			const event = createStreamEvent([record]);
+
+			await router.process(event);
+
+			expect(handler1).toHaveBeenCalledTimes(1);
+			expect(handler2).toHaveBeenCalledTimes(1);
+		});
+
+		test("Multiple handlers matching same REMOVE record both execute", async () => {
+			const router = new StreamRouter();
+			const handler1 = jest.fn();
+			const handler2 = jest.fn();
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("user#");
+
+			const hasStatus = (record: unknown): record is { status: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"status" in record &&
+				typeof (record as { status: unknown }).status === "string";
+
+			router.onRemove(isUser, handler1);
+			router.onRemove(hasStatus, handler2);
+
+			const oldItem = {
+				pk: "user#1",
+				sk: "profile",
+				status: "active",
+				name: "Deleted User",
+			};
+			const record = createStreamRecord(
+				"REMOVE",
+				{ pk: "user#1", sk: "profile" },
+				undefined,
+				oldItem,
+			);
+			const event = createStreamEvent([record]);
+
+			await router.process(event);
+
+			expect(handler1).toHaveBeenCalledTimes(1);
+			expect(handler2).toHaveBeenCalledTimes(1);
+		});
+
+		test("Multiple matching handlers execute in registration order", async () => {
+			const router = new StreamRouter();
+			const executionOrder: string[] = [];
+
+			const isAny = (record: unknown): record is Record<string, unknown> =>
+				typeof record === "object" && record !== null;
+
+			router.onInsert(isAny, async () => {
+				executionOrder.push("first");
+			});
+			router.onInsert(isAny, async () => {
+				executionOrder.push("second");
+			});
+			router.onInsert(isAny, async () => {
+				executionOrder.push("third");
+			});
+
+			const record = createStreamRecord(
+				"INSERT",
+				{ pk: "item#1", sk: "data" },
+				{ pk: "item#1", sk: "data" },
+			);
+			const event = createStreamEvent([record]);
+
+			await router.process(event);
+
+			expect(executionOrder).toEqual(["first", "second", "third"]);
 		});
 
 		test("Mixed event types in single batch", async () => {
