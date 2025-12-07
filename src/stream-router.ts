@@ -9,6 +9,7 @@ import { ConfigurationError } from "./errors";
 import type {
 	AttributeChangeType,
 	BatchHandlerOptions,
+	BatchItemFailuresResponse,
 	HandlerContext,
 	HandlerFunction,
 	HandlerOptions,
@@ -19,6 +20,7 @@ import type {
 	ModifyHandlerOptions,
 	Parser,
 	ProcessingResult,
+	ProcessOptions,
 	RegisteredHandler,
 	RemoveHandler,
 	StreamRouterOptions,
@@ -440,14 +442,31 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 	/**
 	 * Process a DynamoDB Stream event through the router.
+	 * @param event The DynamoDB Stream event to process
+	 * @param options Processing options
+	 * @returns ProcessingResult or BatchItemFailuresResponse based on options
 	 */
-	async process(event: DynamoDBStreamEvent): Promise<ProcessingResult> {
+	async process(
+		event: DynamoDBStreamEvent,
+		options: ProcessOptions & { reportBatchItemFailures: true },
+	): Promise<BatchItemFailuresResponse>;
+	async process(
+		event: DynamoDBStreamEvent,
+		options?: ProcessOptions,
+	): Promise<ProcessingResult>;
+	async process(
+		event: DynamoDBStreamEvent,
+		options?: ProcessOptions,
+	): Promise<ProcessingResult | BatchItemFailuresResponse> {
 		const result: ProcessingResult = {
 			processed: 0,
 			succeeded: 0,
 			failed: 0,
 			errors: [],
 		};
+
+		// Track first failed record's sequence number for batch item failures
+		let firstFailedSequenceNumber: string | undefined;
 
 		// Collect batch records: Map<handlerId, Map<batchKey, Array<batchRecord>>>
 		const batchCollector = new Map<
@@ -458,6 +477,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		for (const record of event.Records) {
 			result.processed++;
 			const recordId = record.eventID ?? `record_${result.processed}`;
+			const sequenceNumber = record.dynamodb?.SequenceNumber;
 
 			try {
 				// Check same region filter
@@ -499,8 +519,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 						}
 
 						// Check if batch mode is enabled
-						const options = handler.options as BatchHandlerOptions;
-						if (options.batch) {
+						const handlerOptions = handler.options as BatchHandlerOptions;
+						if (handlerOptions.batch) {
 							// Collect for batch processing
 							if (!batchCollector.has(handler.id)) {
 								batchCollector.set(handler.id, new Map());
@@ -537,6 +557,11 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					error: error instanceof Error ? error : new Error(String(error)),
 					phase: "handler",
 				});
+
+				// Track first failed sequence number for batch item failures
+				if (!firstFailedSequenceNumber && sequenceNumber) {
+					firstFailedSequenceNumber = sequenceNumber;
+				}
 			}
 		}
 
@@ -557,6 +582,15 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					});
 				}
 			}
+		}
+
+		// Return batch item failures response if requested
+		if (options?.reportBatchItemFailures) {
+			const batchItemFailures: Array<{ itemIdentifier: string }> = [];
+			if (firstFailedSequenceNumber) {
+				batchItemFailures.push({ itemIdentifier: firstFailedSequenceNumber });
+			}
+			return { batchItemFailures };
 		}
 
 		return result;

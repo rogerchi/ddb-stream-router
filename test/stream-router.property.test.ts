@@ -1389,3 +1389,189 @@ describe("Batch Processing Properties", () => {
 		]);
 	});
 });
+
+describe("Batch Item Failures Properties", () => {
+	// Helper to create a mock record with sequence number
+	function createMockRecordWithSequence(
+		eventName: "INSERT" | "MODIFY" | "REMOVE",
+		sequenceNumber: string,
+		newImage?: Record<string, unknown>,
+		oldImage?: Record<string, unknown>,
+	): DynamoDBRecord {
+		const toAttributeValue = (obj: Record<string, unknown> | undefined) => {
+			if (!obj) return undefined;
+			const result: Record<string, { S?: string; N?: string }> = {};
+			for (const [key, value] of Object.entries(obj)) {
+				if (typeof value === "string") {
+					result[key] = { S: value };
+				} else if (typeof value === "number") {
+					result[key] = { N: String(value) };
+				}
+			}
+			return result;
+		};
+
+		return {
+			eventID: `event_${Math.random().toString(36).substring(2)}`,
+			eventName,
+			eventSourceARN:
+				"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+			dynamodb: {
+				Keys: toAttributeValue({ pk: "test" }),
+				NewImage: toAttributeValue(newImage),
+				OldImage: toAttributeValue(oldImage),
+				SequenceNumber: sequenceNumber,
+			},
+		} as DynamoDBRecord;
+	}
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 25: Batch item failures returns first failed record**
+	 * **Validates: Requirements 15.2, 15.3**
+	 *
+	 * For any event where one or more records fail processing, when reportBatchItemFailures
+	 * is true, the router should return a batchItemFailures array containing only the first
+	 * failed record's sequence number.
+	 */
+	test("Property 25: Batch item failures returns first failed record", async () => {
+		await fc.assert(
+			fc.asyncProperty(
+				fc.integer({ min: 1, max: 5 }),
+				fc.integer({ min: 0, max: 4 }),
+				async (totalRecords, failAtIndex) => {
+					// Ensure failAtIndex is within bounds
+					const actualFailIndex = Math.min(failAtIndex, totalRecords - 1);
+
+					const router = new StreamRouter();
+					let callCount = 0;
+					const discriminator = (record: unknown): record is { id: string } =>
+						typeof record === "object" && record !== null && "id" in record;
+
+					router.insert(discriminator, () => {
+						if (callCount === actualFailIndex) {
+							callCount++;
+							throw new Error("Intentional failure");
+						}
+						callCount++;
+					});
+
+					const records = Array.from({ length: totalRecords }, (_, i) =>
+						createMockRecordWithSequence("INSERT", `seq_${i}`, { id: `item_${i}` }),
+					);
+					const event = createMockEvent(records);
+
+					const result = await router.process(event, {
+						reportBatchItemFailures: true,
+					});
+
+					// Should return BatchItemFailuresResponse
+					expect(result).toHaveProperty("batchItemFailures");
+					const batchResult = result as { batchItemFailures: Array<{ itemIdentifier: string }> };
+
+					// Should contain exactly one failure - the first failed record
+					expect(batchResult.batchItemFailures).toHaveLength(1);
+					expect(batchResult.batchItemFailures[0].itemIdentifier).toBe(
+						`seq_${actualFailIndex}`,
+					);
+
+					return true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 25: Multiple failures only report first one", async () => {
+		const router = new StreamRouter();
+		let callCount = 0;
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		// Fail on records 1 and 3
+		router.insert(discriminator, () => {
+			if (callCount === 1 || callCount === 3) {
+				callCount++;
+				throw new Error("Intentional failure");
+			}
+			callCount++;
+		});
+
+		const records = [
+			createMockRecordWithSequence("INSERT", "seq_0", { id: "0" }),
+			createMockRecordWithSequence("INSERT", "seq_1", { id: "1" }),
+			createMockRecordWithSequence("INSERT", "seq_2", { id: "2" }),
+			createMockRecordWithSequence("INSERT", "seq_3", { id: "3" }),
+		];
+		const event = createMockEvent(records);
+
+		const result = await router.process(event, { reportBatchItemFailures: true });
+
+		expect(result).toHaveProperty("batchItemFailures");
+		const batchResult = result as { batchItemFailures: Array<{ itemIdentifier: string }> };
+
+		// Should only contain the first failure (seq_1)
+		expect(batchResult.batchItemFailures).toHaveLength(1);
+		expect(batchResult.batchItemFailures[0].itemIdentifier).toBe("seq_1");
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 26: Batch item failures returns empty array on success**
+	 * **Validates: Requirements 15.4**
+	 *
+	 * For any event where all records process successfully, when reportBatchItemFailures
+	 * is true, the router should return an empty batchItemFailures array.
+	 */
+	test("Property 26: Batch item failures returns empty array on success", async () => {
+		await fc.assert(
+			fc.asyncProperty(fc.integer({ min: 1, max: 10 }), async (recordCount) => {
+				const router = new StreamRouter();
+				const discriminator = (record: unknown): record is { id: string } =>
+					typeof record === "object" && record !== null && "id" in record;
+
+				router.insert(discriminator, () => {
+					// Handler succeeds
+				});
+
+				const records = Array.from({ length: recordCount }, (_, i) =>
+					createMockRecordWithSequence("INSERT", `seq_${i}`, { id: `item_${i}` }),
+				);
+				const event = createMockEvent(records);
+
+				const result = await router.process(event, {
+					reportBatchItemFailures: true,
+				});
+
+				// Should return BatchItemFailuresResponse with empty array
+				expect(result).toHaveProperty("batchItemFailures");
+				const batchResult = result as { batchItemFailures: Array<{ itemIdentifier: string }> };
+				expect(batchResult.batchItemFailures).toHaveLength(0);
+
+				return true;
+			}),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Without reportBatchItemFailures returns ProcessingResult", async () => {
+		const router = new StreamRouter();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.insert(discriminator, () => {
+			throw new Error("Intentional failure");
+		});
+
+		const record = createMockRecordWithSequence("INSERT", "seq_0", { id: "0" });
+		const event = createMockEvent([record]);
+
+		// Without reportBatchItemFailures option
+		const result = await router.process(event);
+
+		// Should return ProcessingResult, not BatchItemFailuresResponse
+		expect(result).toHaveProperty("processed");
+		expect(result).toHaveProperty("succeeded");
+		expect(result).toHaveProperty("failed");
+		expect(result).toHaveProperty("errors");
+		expect(result).not.toHaveProperty("batchItemFailures");
+	});
+});

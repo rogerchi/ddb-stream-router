@@ -73,6 +73,16 @@ export interface ProcessingResult {
 	}>;
 }
 
+// Process options for controlling response format
+export interface ProcessOptions {
+	reportBatchItemFailures?: boolean; // Return batchItemFailures format for partial batch response
+}
+
+// Batch item failures response for Lambda partial batch response
+export interface BatchItemFailuresResponse {
+	batchItemFailures: Array<{ itemIdentifier: string }>;
+}
+
 // Generic handler function type
 export type HandlerFunction = (...args: unknown[]) => void | Promise<void>;
 

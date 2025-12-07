@@ -178,20 +178,20 @@
 - [x] 11. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Implement batch item failures response
-  - [ ] 12.1 Add ProcessOptions and BatchItemFailuresResponse types
+- [x] 12. Implement batch item failures response
+  - [x] 12.1 Add ProcessOptions and BatchItemFailuresResponse types
     - Add reportBatchItemFailures option to process() method
     - Define BatchItemFailuresResponse interface with batchItemFailures array
     - _Requirements: 15.1, 15.5_
-  - [ ] 12.2 Implement batch item failures logic
+  - [x] 12.2 Implement batch item failures logic
     - Track first failed record's sequence number during processing
     - Return BatchItemFailuresResponse when reportBatchItemFailures is true
     - Return empty array when all records succeed
     - _Requirements: 15.2, 15.3, 15.4_
-  - [ ] 12.3 Write property test for batch item failures first error
+  - [x] 12.3 Write property test for batch item failures first error
     - **Property 25: Batch item failures returns first failed record**
     - **Validates: Requirements 15.2, 15.3**
-  - [ ] 12.4 Write property test for batch item failures success
+  - [x] 12.4 Write property test for batch item failures success
     - **Property 26: Batch item failures returns empty array on success**
     - **Validates: Requirements 15.4**
 
