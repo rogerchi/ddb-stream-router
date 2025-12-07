@@ -358,3 +358,82 @@ describe("Event Processing", () => {
 		});
 	});
 });
+
+describe("Handler Getters", () => {
+	test("streamHandler returns a function that processes events with batch failures", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+
+		const isUser = (record: unknown): record is { pk: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.onInsert(isUser, handler);
+
+		const record = createStreamRecord(
+			"INSERT",
+			{ pk: "user#1", sk: "profile" },
+			{ pk: "user#1", sk: "profile", name: "Test" },
+		);
+		const event = createStreamEvent([record]);
+
+		// Use the streamHandler getter
+		const result = await router.streamHandler(event);
+
+		// Should return BatchItemFailuresResponse format
+		expect(result).toHaveProperty("batchItemFailures");
+		expect(result.batchItemFailures).toEqual([]);
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	test("sqsHandler returns a function that processes deferred events with batch failures", async () => {
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+		});
+		const handler = jest.fn();
+
+		const isUser = (record: unknown): record is { pk: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.onInsert(isUser, handler).defer();
+
+		const handlerId = router.handlers[0].id;
+		const originalRecord = createStreamRecord(
+			"INSERT",
+			{ pk: "user#1", sk: "profile" },
+			{ pk: "user#1", sk: "profile", name: "Test" },
+		);
+
+		const sqsEvent = {
+			Records: [
+				{
+					messageId: "msg-1",
+					body: JSON.stringify({ handlerId, record: originalRecord }),
+				},
+			],
+		};
+
+		// Use the sqsHandler getter
+		const result = await router.sqsHandler(sqsEvent);
+
+		// Should return BatchItemFailuresResponse format
+		expect(result).toHaveProperty("batchItemFailures");
+		expect(result.batchItemFailures).toEqual([]);
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	test("streamHandler can be directly exported", () => {
+		const router = new StreamRouter();
+
+		// Verify it's a function that can be exported
+		const handler = router.streamHandler;
+		expect(typeof handler).toBe("function");
+	});
+
+	test("sqsHandler can be directly exported", () => {
+		const router = new StreamRouter();
+
+		// Verify it's a function that can be exported
+		const handler = router.sqsHandler;
+		expect(typeof handler).toBe("function");
+	});
+});

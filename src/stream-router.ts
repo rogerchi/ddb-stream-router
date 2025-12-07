@@ -201,6 +201,39 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		return this._deferQueue;
 	}
 
+	/**
+	 * Pre-bound DynamoDB Stream handler for direct export.
+	 * Automatically uses reportBatchItemFailures for partial batch response support.
+	 *
+	 * @example
+	 * ```typescript
+	 * export const handler = router.streamHandler;
+	 * ```
+	 */
+	get streamHandler(): (
+		event: DynamoDBStreamEvent,
+	) => Promise<BatchItemFailuresResponse> {
+		return (event: DynamoDBStreamEvent) =>
+			this.process(event, { reportBatchItemFailures: true });
+	}
+
+	/**
+	 * Pre-bound SQS handler for processing deferred records.
+	 * Automatically uses reportBatchItemFailures for partial batch response support.
+	 *
+	 * @example
+	 * ```typescript
+	 * export const handler = router.sqsHandler;
+	 * ```
+	 */
+	get sqsHandler(): (sqsEvent: {
+		Records: Array<{ body: string; messageId: string }>;
+	}) => Promise<BatchItemFailuresResponse> {
+		return (sqsEvent: {
+			Records: Array<{ body: string; messageId: string }>;
+		}) => this.processDeferred(sqsEvent, { reportBatchItemFailures: true });
+	}
+
 	/** @internal */
 	get handlers(): RegisteredHandler[] {
 		return this._handlers;

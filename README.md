@@ -60,9 +60,13 @@ router
     console.log(`User deleted: ${deletedUser.name}`);
   });
 
-export const handler: DynamoDBStreamHandler = async (event) => {
-  return router.process(event, { reportBatchItemFailures: true });
-};
+// Simplified export with built-in batch failure support
+export const handler = router.streamHandler;
+
+// Or with custom options:
+// export const handler: DynamoDBStreamHandler = async (event) => {
+//   return router.process(event, { reportBatchItemFailures: true });
+// };
 ```
 
 ## Discriminator Matching
@@ -257,15 +261,11 @@ router
   })
   .defer({ delaySeconds: 30 });
 
-// Stream handler
-export const streamHandler = async (event) => {
-  return router.process(event, { reportBatchItemFailures: true });
-};
+// Stream handler - simplified export with built-in batch failure support
+export const streamHandler = router.streamHandler;
 
-// SQS handler
-export const sqsHandler = async (event) => {
-  return router.processDeferred(event, { reportBatchItemFailures: true });
-};
+// SQS handler - simplified export with built-in batch failure support
+export const sqsHandler = router.sqsHandler;
 ```
 
 ## Global Tables (Region Filtering)

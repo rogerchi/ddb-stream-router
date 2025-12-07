@@ -5,7 +5,6 @@
  * to avoid blocking the DynamoDB stream processing.
  */
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
-import type { DynamoDBStreamHandler, SQSHandler } from "aws-lambda";
 import { StreamRouter, createSQSClient } from "../src";
 
 // Entity types
@@ -46,14 +45,10 @@ router
 	.defer({ delaySeconds: 5 }); // Optional delay
 
 // DynamoDB Stream handler - processes stream, enqueues deferred work
-export const streamHandler: DynamoDBStreamHandler = async (event) => {
-	return router.process(event, { reportBatchItemFailures: true });
-};
+export const streamHandler = router.streamHandler;
 
 // SQS handler - processes deferred work
-export const sqsHandler: SQSHandler = async (event) => {
-	return router.processDeferred(event, { reportBatchItemFailures: true });
-};
+export const sqsHandler = router.sqsHandler;
 
 // Placeholder functions
 async function sendOrderConfirmationEmail(email: string, orderId: string) {
