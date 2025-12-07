@@ -4,7 +4,6 @@
  * This example shows how to filter MODIFY events based on
  * specific attribute changes.
  */
-import type { DynamoDBStreamHandler } from "aws-lambda";
 import { StreamRouter } from "../src";
 
 // Entity types
@@ -145,10 +144,8 @@ router.onModify(
 	},
 );
 
-// Lambda handler
-export const handler: DynamoDBStreamHandler = async (event) => {
-	return router.process(event, { reportBatchItemFailures: true });
-};
+// Lambda handler - simplified export
+export const handler = router.streamHandler;
 
 // Placeholder functions
 async function sendEmailVerification(email: string) {
