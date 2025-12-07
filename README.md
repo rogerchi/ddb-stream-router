@@ -1,1 +1,333 @@
-# replace this
+# ddb-stream-router
+
+A TypeScript library providing Express-like routing for DynamoDB Stream events. Register type-safe handlers for INSERT, MODIFY, and REMOVE operations using discriminator functions or schema validators like Zod.
+
+## Features
+
+- **Express-like API** - Familiar `.insert()`, `.modify()`, `.remove()`, `.use()` methods
+- **Type Safety** - Full TypeScript inference from discriminators and parsers
+- **Flexible Matching** - Use type guards or schema validators (Zod, etc.)
+- **Attribute Filtering** - React to specific attribute changes in MODIFY events
+- **Batch Processing** - Group records and process them together
+- **Middleware Support** - Intercept records before handlers
+- **Deferred Processing** - Automatically enqueue to SQS for async processing
+- **Global Tables** - Filter records by region
+- **Partial Batch Failures** - Lambda retry support via `reportBatchItemFailures`
+
+## Installation
+
+```bash
+npm install ddb-stream-router
+# or
+yarn add ddb-stream-router
+```
+
+**Peer dependencies:**
+```bash
+npm install @aws-sdk/util-dynamodb @aws-sdk/client-sqs
+```
+
+## Quick Start
+
+```typescript
+import { StreamRouter } from 'ddb-stream-router';
+import type { DynamoDBStreamHandler } from 'aws-lambda';
+
+interface User {
+  pk: string;
+  sk: string;
+  name: string;
+  email: string;
+}
+
+// Type guard discriminator
+const isUser = (record: unknown): record is User =>
+  typeof record === 'object' &&
+  record !== null &&
+  'pk' in record &&
+  (record as { pk: string }).pk.startsWith('USER#');
+
+const router = new StreamRouter();
+
+router
+  .insert(isUser, async (newUser, ctx) => {
+    console.log(`User created: ${newUser.name}`);
+  })
+  .modify(isUser, async (oldUser, newUser, ctx) => {
+    console.log(`User updated: ${oldUser.name} -> ${newUser.name}`);
+  })
+  .remove(isUser, async (deletedUser, ctx) => {
+    console.log(`User deleted: ${deletedUser.name}`);
+  });
+
+export const handler: DynamoDBStreamHandler = async (event) => {
+  return router.process(event, { reportBatchItemFailures: true });
+};
+```
+
+## Using Zod Schemas
+
+```typescript
+import { z } from 'zod';
+import { StreamRouter } from 'ddb-stream-router';
+
+const UserSchema = z.object({
+  pk: z.string().startsWith('USER#'),
+  sk: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+const router = new StreamRouter();
+
+// Schema validates and parses data before handler receives it
+router.insert(UserSchema, async (newUser: User, ctx) => {
+  // newUser is guaranteed to match the schema
+  console.log(`Valid user: ${newUser.email}`);
+});
+```
+
+## Attribute Change Filtering
+
+React only when specific attributes change:
+
+```typescript
+// Only trigger when email changes
+router.modify(
+  isUser,
+  async (oldUser, newUser, ctx) => {
+    await sendEmailVerification(newUser.email);
+  },
+  { attribute: 'email', changeType: 'changed_attribute' }
+);
+
+// Trigger when tags are added to a collection
+router.modify(
+  isUser,
+  async (oldUser, newUser, ctx) => {
+    console.log('New tags added');
+  },
+  { attribute: 'tags', changeType: 'new_item_in_collection' }
+);
+
+// Multiple change types (OR logic)
+router.modify(
+  isUser,
+  async (oldUser, newUser, ctx) => {
+    console.log('Tags modified');
+  },
+  { attribute: 'tags', changeType: ['new_item_in_collection', 'remove_item_from_collection'] }
+);
+```
+
+**Change types:**
+- `new_attribute` - Attribute added
+- `remove_attribute` - Attribute removed  
+- `changed_attribute` - Attribute value changed
+- `new_item_in_collection` - Item added to List/Map/Set
+- `remove_item_from_collection` - Item removed from List/Map/Set
+- `changed_item_in_collection` - Item modified in List/Map
+
+## Batch Processing
+
+Process multiple records together:
+
+```typescript
+// All matching records in one handler call
+router.insert(
+  isInventoryChange,
+  async (records) => {
+    console.log(`Processing ${records.length} changes`);
+    for (const { newImage, ctx } of records) {
+      // process each record
+    }
+  },
+  { batch: true }
+);
+
+// Group by attribute value
+router.insert(
+  isAuditLog,
+  async (records) => {
+    const userId = records[0].newImage.userId;
+    console.log(`${records.length} logs for user ${userId}`);
+  },
+  { batch: true, batchKey: 'userId' }
+);
+
+// Group by primary key
+router.modify(
+  isItem,
+  async (records) => {
+    // All records for the same pk+sk
+  },
+  { batch: true, batchKey: { partitionKey: 'pk', sortKey: 'sk' } }
+);
+```
+
+## Middleware
+
+```typescript
+// Logging middleware
+router.use(async (record, next) => {
+  console.log(`Processing ${record.eventName}: ${record.eventID}`);
+  await next();
+});
+
+// Skip certain records
+router.use(async (record, next) => {
+  if (record.eventSourceARN?.includes('test-table')) {
+    return; // Don't call next() to skip
+  }
+  await next();
+});
+
+// Error handling
+router.use(async (record, next) => {
+  try {
+    await next();
+  } catch (error) {
+    await recordMetric('stream.error', 1);
+    throw error;
+  }
+});
+```
+
+## Deferred Processing (SQS)
+
+Offload heavy processing to SQS:
+
+```typescript
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+
+const sqsClient = new SQSClient({});
+
+const router = new StreamRouter({
+  deferQueue: process.env.DEFER_QUEUE_URL,
+  sqsClient: {
+    sendMessage: async (params) => {
+      return sqsClient.send(new SendMessageCommand(params));
+    },
+  },
+});
+
+// Immediate handler
+router.insert(isOrder, async (order, ctx) => {
+  console.log('Order received');
+});
+
+// Deferred handler - enqueues to SQS
+router
+  .insert(isOrder, async (order, ctx) => {
+    // This runs when processing from SQS
+    await sendConfirmationEmail(order);
+    await generateInvoice(order);
+  })
+  .defer({ delaySeconds: 30 });
+
+// Stream handler
+export const streamHandler = async (event) => {
+  return router.process(event, { reportBatchItemFailures: true });
+};
+
+// SQS handler
+export const sqsHandler = async (event) => {
+  return router.processDeferred(event, { reportBatchItemFailures: true });
+};
+```
+
+## Global Tables (Region Filtering)
+
+Process only records from the current region:
+
+```typescript
+const router = new StreamRouter({ sameRegionOnly: true });
+```
+
+## Configuration Options
+
+```typescript
+const router = new StreamRouter({
+  // Stream view type (default: 'NEW_AND_OLD_IMAGES')
+  streamViewType: 'NEW_AND_OLD_IMAGES',
+  
+  // Auto-unmarshall DynamoDB JSON (default: true)
+  unmarshall: true,
+  
+  // Only process same-region records (default: false)
+  sameRegionOnly: false,
+  
+  // Default SQS queue for deferred handlers
+  deferQueue: 'https://sqs...',
+  
+  // SQS client for deferred processing
+  sqsClient: { sendMessage: async (params) => { ... } },
+});
+```
+
+## Stream View Types
+
+Handler signatures adapt based on your DynamoDB stream configuration:
+
+| Stream View Type | INSERT | MODIFY | REMOVE |
+|-----------------|--------|--------|--------|
+| `KEYS_ONLY` | `(keys, ctx)` | `(keys, ctx)` | `(keys, ctx)` |
+| `NEW_IMAGE` | `(newImage, ctx)` | `(undefined, newImage, ctx)` | `(undefined, ctx)` |
+| `OLD_IMAGE` | `(undefined, ctx)` | `(oldImage, undefined, ctx)` | `(oldImage, ctx)` |
+| `NEW_AND_OLD_IMAGES` | `(newImage, ctx)` | `(oldImage, newImage, ctx)` | `(oldImage, ctx)` |
+
+## Processing Results
+
+```typescript
+const result = await router.process(event);
+// { processed: 10, succeeded: 9, failed: 1, errors: [...] }
+
+// Or with partial batch failures for Lambda retry
+const result = await router.process(event, { reportBatchItemFailures: true });
+// { batchItemFailures: [{ itemIdentifier: 'sequence-number' }] }
+```
+
+## API Reference
+
+### StreamRouter
+
+```typescript
+class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
+  constructor(options?: StreamRouterOptions);
+  
+  insert<T>(matcher, handler, options?): HandlerRegistration;
+  modify<T>(matcher, handler, options?): HandlerRegistration;
+  remove<T>(matcher, handler, options?): HandlerRegistration;
+  use(middleware): this;
+  
+  process(event, options?): Promise<ProcessingResult | BatchItemFailuresResponse>;
+  processDeferred(sqsEvent, options?): Promise<ProcessingResult | BatchItemFailuresResponse>;
+}
+```
+
+### HandlerRegistration
+
+```typescript
+interface HandlerRegistration {
+  defer(options?: { queue?: string; delaySeconds?: number }): StreamRouter;
+  insert(...): HandlerRegistration;
+  modify(...): HandlerRegistration;
+  remove(...): HandlerRegistration;
+}
+```
+
+### HandlerContext
+
+```typescript
+interface HandlerContext {
+  eventName: 'INSERT' | 'MODIFY' | 'REMOVE';
+  eventID?: string;
+  eventSourceARN?: string;
+}
+```
+
+## License
+
+Apache-2.0

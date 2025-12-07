@@ -15,6 +15,13 @@ const project = new typescript.TypeScriptProject({
 		"zod",
 	],
 	peerDeps: ["@aws-sdk/util-dynamodb", "@aws-sdk/client-sqs"],
+	tsconfig: {
+		compilerOptions: {
+			inlineSourceMap: false,
+			inlineSources: false,
+			sourceMap: true, // Generate separate .map files instead
+		},
+	},
 });
 
 // Exclude files from npm package
