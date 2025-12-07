@@ -294,6 +294,9 @@ const router = new StreamRouter({
   
   // SQS client for deferred processing
   sqsClient: { sendMessage: async (params) => { ... } },
+  
+  // Return batchItemFailures format for streamHandler/sqsHandler (default: true)
+  reportBatchItemFailures: true,
 });
 ```
 

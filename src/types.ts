@@ -23,6 +23,7 @@ export interface StreamRouterOptions {
 	sameRegionOnly?: boolean; // Only process records from the same region as the Lambda (default: false)
 	deferQueue?: string; // Default SQS queue URL for deferred processing
 	sqsClient?: SQSClient; // SQS client for deferred processing
+	reportBatchItemFailures?: boolean; // Return batchItemFailures format for streamHandler/sqsHandler (default: true)
 }
 
 // Defer options for .defer() chain method

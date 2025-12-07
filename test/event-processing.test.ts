@@ -379,9 +379,12 @@ describe("Handler Getters", () => {
 		// Use the streamHandler getter
 		const result = await router.streamHandler(event);
 
-		// Should return BatchItemFailuresResponse format
+		// Should return BatchItemFailuresResponse format (default reportBatchItemFailures: true)
 		expect(result).toHaveProperty("batchItemFailures");
-		expect(result.batchItemFailures).toEqual([]);
+		expect(
+			(result as { batchItemFailures: Array<{ itemIdentifier: string }> })
+				.batchItemFailures,
+		).toEqual([]);
 		expect(handler).toHaveBeenCalledTimes(1);
 	});
 
@@ -415,10 +418,37 @@ describe("Handler Getters", () => {
 		// Use the sqsHandler getter
 		const result = await router.sqsHandler(sqsEvent);
 
-		// Should return BatchItemFailuresResponse format
+		// Should return BatchItemFailuresResponse format (default reportBatchItemFailures: true)
 		expect(result).toHaveProperty("batchItemFailures");
-		expect(result.batchItemFailures).toEqual([]);
+		expect(
+			(result as { batchItemFailures: Array<{ itemIdentifier: string }> })
+				.batchItemFailures,
+		).toEqual([]);
 		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	test("streamHandler respects reportBatchItemFailures: false", async () => {
+		const router = new StreamRouter({ reportBatchItemFailures: false });
+		const handler = jest.fn();
+
+		const isUser = (record: unknown): record is { pk: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.onInsert(isUser, handler);
+
+		const record = createStreamRecord(
+			"INSERT",
+			{ pk: "user#1", sk: "profile" },
+			{ pk: "user#1", sk: "profile", name: "Test" },
+		);
+		const event = createStreamEvent([record]);
+
+		const result = await router.streamHandler(event);
+
+		// Should return ProcessingResult format
+		expect(result).toHaveProperty("processed");
+		expect(result).toHaveProperty("succeeded");
+		expect(result).not.toHaveProperty("batchItemFailures");
 	});
 
 	test("streamHandler can be directly exported", () => {

@@ -165,6 +165,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	private readonly _sameRegionOnly: boolean;
 	private readonly _deferQueue: string | undefined;
 	private readonly _sqsClient: SQSClient | undefined;
+	private readonly _reportBatchItemFailures: boolean;
 	private readonly _handlers: RegisteredHandler[] = [];
 	private readonly _middleware: MiddlewareFunction[] = [];
 
@@ -183,6 +184,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		this._sameRegionOnly = options?.sameRegionOnly ?? false;
 		this._deferQueue = options?.deferQueue;
 		this._sqsClient = options?.sqsClient;
+		this._reportBatchItemFailures = options?.reportBatchItemFailures ?? true;
 	}
 
 	get streamViewType(): V {
@@ -203,7 +205,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 	/**
 	 * Pre-bound DynamoDB Stream handler for direct export.
-	 * Automatically uses reportBatchItemFailures for partial batch response support.
+	 * Uses the reportBatchItemFailures setting from constructor (default: true).
 	 *
 	 * @example
 	 * ```typescript
@@ -212,14 +214,18 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 */
 	get streamHandler(): (
 		event: DynamoDBStreamEvent,
-	) => Promise<BatchItemFailuresResponse> {
-		return (event: DynamoDBStreamEvent) =>
-			this.process(event, { reportBatchItemFailures: true });
+	) => Promise<BatchItemFailuresResponse | ProcessingResult> {
+		return (event: DynamoDBStreamEvent) => {
+			if (this._reportBatchItemFailures) {
+				return this.process(event, { reportBatchItemFailures: true });
+			}
+			return this.process(event);
+		};
 	}
 
 	/**
 	 * Pre-bound SQS handler for processing deferred records.
-	 * Automatically uses reportBatchItemFailures for partial batch response support.
+	 * Uses the reportBatchItemFailures setting from constructor (default: true).
 	 *
 	 * @example
 	 * ```typescript
@@ -228,10 +234,17 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 */
 	get sqsHandler(): (sqsEvent: {
 		Records: Array<{ body: string; messageId: string }>;
-	}) => Promise<BatchItemFailuresResponse> {
+	}) => Promise<BatchItemFailuresResponse | ProcessingResult> {
 		return (sqsEvent: {
 			Records: Array<{ body: string; messageId: string }>;
-		}) => this.processDeferred(sqsEvent, { reportBatchItemFailures: true });
+		}) => {
+			if (this._reportBatchItemFailures) {
+				return this.processDeferred(sqsEvent, {
+					reportBatchItemFailures: true,
+				});
+			}
+			return this.processDeferred(sqsEvent);
+		};
 	}
 
 	/** @internal */
