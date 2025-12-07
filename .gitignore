@@ -47,4 +47,6 @@ junit.xml
 !/src/
 /lib
 /dist/
+.cdk.outputs.integration.json
+integ/cdk.out/
 !/.projenrc.ts

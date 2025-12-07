@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.dev.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "./cdk.out"
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts"],
+  "exclude": ["node_modules", "cdk.out"]
+}

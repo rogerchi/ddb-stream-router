@@ -26,6 +26,14 @@
       "type": "build"
     },
     {
+      "name": "aws-cdk",
+      "type": "build"
+    },
+    {
+      "name": "aws-cdk-lib",
+      "type": "build"
+    },
+    {
       "name": "aws-sdk-client-mock",
       "type": "build"
     },
@@ -37,6 +45,10 @@
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {

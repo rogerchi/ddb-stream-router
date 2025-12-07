@@ -23,6 +23,8 @@ tsconfig.tsbuildinfo
 /.kiro/
 /examples/
 /biome.jsonc
+/integ/
+/.cdk.outputs.integration.json
 /.gitattributes
 /.projenrc.ts
 /projenrc
