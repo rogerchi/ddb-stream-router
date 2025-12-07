@@ -1,0 +1,195 @@
+# Implementation Plan
+
+- [ ] 1. Set up project dependencies via projen
+  - [ ] 1.1 Configure projen dependencies
+    - Modify .projenrc.ts to add dependencies:
+      - deps: `@aws-sdk/util-dynamodb` (for unmarshalling)
+      - devDeps: `fast-check` (for property-based testing), `@types/aws-lambda` (for DynamoDB Stream types)
+      - peerDeps: `@aws-sdk/util-dynamodb` (optional peer dependency)
+    - Run `npx projen` to resynth project files and install dependencies
+    - _Requirements: 11.4_
+
+- [ ] 2. Set up project structure and core types
+  - [ ] 2.1 Create core type definitions
+    - Define StreamViewType, AttributeChangeType, HandlerOptions, ModifyHandlerOptions, BatchHandlerOptions
+    - Define Discriminator, Parser, and Matcher types
+    - Define HandlerContext and ProcessingResult interfaces
+    - Add unmarshall option to StreamRouterOptions (default: true)
+    - _Requirements: 1.1, 3.6, 3.7, 10.1, 11.2_
+  - [ ] 2.2 Write property test for valid stream view type configuration
+    - **Property 1: Valid stream view type configuration is stored correctly**
+    - **Validates: Requirements 1.1**
+  - [ ] 2.3 Write property test for invalid stream view type rejection
+    - **Property 2: Invalid stream view type configuration is rejected**
+    - **Validates: Requirements 1.3**
+
+- [ ] 3. Implement StreamRouter class foundation
+  - [ ] 3.1 Create StreamRouter class with constructor
+    - Implement constructor accepting StreamRouterOptions
+    - Store streamViewType configuration (default to NEW_AND_OLD_IMAGES)
+    - Store unmarshall configuration (default to true)
+    - Initialize handler registry and middleware array
+    - Validate streamViewType and throw ConfigurationError for invalid values
+    - _Requirements: 1.1, 1.2, 1.3, 11.2_
+  - [ ] 3.2 Implement handler registration methods
+    - Implement insert(), modify(), remove() methods
+    - Detect whether matcher is discriminator or parser (check for safeParse method)
+    - Store handlers in registry with event type, matcher, options, and isParser flag
+    - Return `this` for method chaining
+    - _Requirements: 2.1, 2.2, 3.1, 3.2, 4.1, 4.2_
+  - [ ] 3.3 Write property test for handler registration
+    - **Property 3: Handler registration preserves handler across all event types**
+    - **Validates: Requirements 2.1, 3.1, 4.1**
+
+- [ ] 4. Implement middleware system
+  - [ ] 4.1 Implement use() method and middleware chain
+    - Implement use() method to register middleware in order
+    - Create middleware chain executor that calls next() to continue
+    - Handle async middleware functions
+    - _Requirements: 5.1, 5.2, 5.3_
+  - [ ] 4.2 Write property test for middleware execution order
+    - **Property 7: Middleware executes in registration order before handlers**
+    - **Validates: Requirements 5.1, 5.2**
+  - [ ] 4.3 Write property test for middleware chain continuation
+    - **Property 8: Middleware chain continues on next() call**
+    - **Validates: Requirements 5.3**
+  - [ ] 4.4 Write property test for middleware error propagation
+    - **Property 9: Middleware errors stop processing and propagate**
+    - **Validates: Requirements 5.4**
+
+- [ ] 5. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 6. Implement event processing core
+  - [ ] 6.1 Implement process() method with unmarshalling
+    - Iterate through all records in DynamoDB Stream event
+    - Unmarshall oldImage/newImage/keys using @aws-sdk/util-dynamodb when unmarshall option is true
+    - Execute middleware chain for each record
+    - Match records to handlers by event type (INSERT/MODIFY/REMOVE)
+    - Build and return ProcessingResult with counts and errors
+    - _Requirements: 7.1, 7.2, 7.4, 7.5, 11.1, 11.2, 11.3, 11.4_
+  - [ ] 6.2 Implement discriminator matching logic
+    - Call discriminator function with record image data (unmarshalled or raw based on option)
+    - Invoke handler if discriminator returns true
+    - Pass appropriate image data based on stream view type
+    - _Requirements: 2.3, 3.3, 4.3, 6.1, 6.2, 6.3, 6.4_
+  - [ ] 6.3 Implement parser matching logic
+    - Call parser.safeParse() with record image data
+    - Invoke handler with parsed data if validation succeeds
+    - Skip handler silently if validation fails
+    - _Requirements: 2.4, 2.5, 3.4, 3.5, 4.4, 4.5_
+  - [ ] 6.4 Write property test for discriminator-matched handlers
+    - **Property 4: Discriminator-matched handlers are invoked with correct data**
+    - **Validates: Requirements 2.3, 3.3, 4.3**
+  - [ ] 6.5 Write property test for parser-validated handlers
+    - **Property 5: Parser-validated handlers receive parsed data**
+    - **Validates: Requirements 2.2, 2.4, 3.2, 3.4, 4.2, 4.4**
+  - [ ] 6.6 Write property test for parser validation failures
+    - **Property 6: Parser validation failures skip handler without error**
+    - **Validates: Requirements 2.5, 3.5, 4.5**
+  - [ ] 6.7 Write property test for stream view type data handling
+    - **Property 10: Stream view type determines available image data**
+    - **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
+  - [ ] 6.8 Write property test for all records processing
+    - **Property 11: All records in event are processed**
+    - **Validates: Requirements 7.1**
+  - [ ] 6.9 Write property test for multiple matching handlers
+    - **Property 12: Multiple matching handlers all execute in order**
+    - **Validates: Requirements 7.3**
+  - [ ] 6.10 Write property test for non-matching records
+    - **Property 13: Non-matching records are skipped without error**
+    - **Validates: Requirements 7.4**
+  - [ ] 6.11 Write property test for processing result accuracy
+    - **Property 14: Processing result accurately reflects execution**
+    - **Validates: Requirements 7.5**
+  - [ ] 6.12 Write property test for unmarshalling enabled
+    - **Property 20: Unmarshalling converts DynamoDB JSON to native objects**
+    - **Validates: Requirements 11.1, 11.2, 11.4**
+  - [ ] 6.13 Write property test for unmarshalling disabled
+    - **Property 21: Unmarshalling disabled passes raw format**
+    - **Validates: Requirements 11.3**
+
+- [ ] 7. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 8. Implement attribute change detection
+  - [ ] 8.1 Create attribute diff utility
+    - Implement diffAttributes() function to compare oldImage and newImage
+    - Detect new_attribute, remove_attribute, changed_attribute changes
+    - Return DiffResult with list of AttributeDiff objects
+    - _Requirements: 9.1, 9.2, 9.3, 9.4_
+  - [ ] 8.2 Implement collection change detection
+    - Detect new_item_in_collection for List/Map/Set additions
+    - Detect remove_item_from_collection for List/Map/Set removals
+    - Detect changed_item_in_collection for List/Map modifications
+    - _Requirements: 9.5, 9.6, 9.7_
+  - [ ] 8.3 Integrate attribute filtering into modify handler matching
+    - Check attribute filter options before invoking modify handlers
+    - Support multiple attribute filters with OR logic
+    - _Requirements: 3.6, 3.7, 9.8_
+  - [ ] 8.4 Write property test for scalar attribute change detection
+    - **Property 15: Attribute change detection for scalar attributes**
+    - **Validates: Requirements 9.1, 9.2, 9.3, 9.4**
+  - [ ] 8.5 Write property test for collection change detection
+    - **Property 16: Collection change detection**
+    - **Validates: Requirements 9.5, 9.6, 9.7**
+  - [ ] 8.6 Write property test for multiple attribute filters
+    - **Property 17: Multiple attribute filters use OR logic**
+    - **Validates: Requirements 9.8**
+
+- [ ] 9. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 10. Implement batch processing
+  - [ ] 10.1 Implement batch record collection
+    - Collect all matching records when batch option is true
+    - Invoke handler once with array of records after all records processed
+    - Handle single-element arrays correctly
+    - _Requirements: 10.1, 10.4, 10.5_
+  - [ ] 10.2 Implement batch key grouping
+    - Group records by batchKey function result or attribute value
+    - Invoke handler once per unique key with grouped records
+    - _Requirements: 10.2, 10.3_
+  - [ ] 10.3 Write property test for batch mode collection
+    - **Property 18: Batch mode collects all matching records**
+    - **Validates: Requirements 10.1, 10.4, 10.5**
+  - [ ] 10.4 Write property test for batch key grouping
+    - **Property 19: Batch key groups records correctly**
+    - **Validates: Requirements 10.2, 10.3**
+
+- [ ] 11. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 12. Create public API exports
+  - [ ] 12.1 Export all public types and classes
+    - Export StreamRouter class
+    - Export all type definitions (StreamViewType, Matcher, Handler types, etc.)
+    - Export error classes (ConfigurationError)
+    - Create clean index.ts barrel file
+    - _Requirements: 8.1, 8.2, 8.3_
+
+- [ ] 13. Integration tests with DynamoDB Local
+  - [ ] 13.1 Set up DynamoDB Local test infrastructure
+    - Configure @shelf/jest-dynamodb or similar
+    - Create test table with streams enabled
+    - Set up test utilities for stream event capture
+    - _Requirements: 12.5_
+  - [ ] 13.2 Write integration tests for INSERT events
+    - Test INSERT event processing with discriminators and parsers
+    - Verify handler invocation with correct data
+    - _Requirements: 12.6_
+  - [ ] 13.3 Write integration tests for MODIFY events
+    - Test MODIFY event processing with attribute filters
+    - Verify oldImage and newImage handling
+    - _Requirements: 12.6_
+  - [ ] 13.4 Write integration tests for REMOVE events
+    - Test REMOVE event processing with discriminators and parsers
+    - Verify handler invocation with correct data
+    - _Requirements: 12.6_
+  - [ ] 13.5 Write integration tests for stream view types
+    - Test all four stream view type configurations
+    - Verify correct data availability per configuration
+    - _Requirements: 12.7_
+
+- [ ] 14. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
