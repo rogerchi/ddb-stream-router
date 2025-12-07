@@ -4,7 +4,7 @@
  * This example shows how to use middleware for cross-cutting concerns
  * like logging, metrics, and error handling.
  */
-import type { DynamoDBRecord, DynamoDBStreamHandler } from "aws-lambda";
+import type { DynamoDBRecord, DynamoDBStreamEvent } from "aws-lambda";
 import { StreamRouter } from "../src";
 
 // Entity type
@@ -72,23 +72,21 @@ router.use(async (record: DynamoDBRecord, next: () => Promise<void>) => {
 
 // Register handlers after middleware
 router
-	.insert(isUser, async (newUser, ctx) => {
+	.insert(isUser, async (newUser) => {
 		console.log(`New user: ${newUser.name}`);
 	})
-	.modify(isUser, async (oldUser, newUser, ctx) => {
+	.modify(isUser, async (oldUser, newUser) => {
 		console.log(`User updated: ${oldUser.name} -> ${newUser.name}`);
 	});
 
 // Lambda handler
-export const handler: DynamoDBStreamHandler = async (event) => {
+export async function handler(event: DynamoDBStreamEvent) {
 	const result = await router.process(event);
 
 	if (result.failed > 0) {
 		console.error("Processing errors:", result.errors);
 	}
-
-	return result;
-};
+}
 
 // Placeholder function
 async function recordMetric(name: string, value: number, dimensions: Record<string, string>) {

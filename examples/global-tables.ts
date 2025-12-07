@@ -4,7 +4,7 @@
  * This example shows how to handle DynamoDB Global Tables
  * where streams are replicated across regions.
  */
-import type { DynamoDBStreamHandler } from "aws-lambda";
+import type { DynamoDBStreamEvent } from "aws-lambda";
 import { StreamRouter } from "../src";
 
 // Entity type
@@ -28,19 +28,19 @@ const router = new StreamRouter({
 });
 
 router
-	.insert(isUser, async (newUser, ctx) => {
+	.insert(isUser, async (newUser) => {
 		// This handler only runs for records that originated in this region
 		console.log(`New user in ${process.env.AWS_REGION}: ${newUser.name}`);
 
 		// Safe to perform region-specific operations
 		await notifyLocalServices(newUser);
 	})
-	.modify(isUser, async (oldUser, newUser, ctx) => {
+	.modify(isUser, async (_oldUser, newUser) => {
 		console.log(`User updated in ${process.env.AWS_REGION}: ${newUser.name}`);
 	});
 
 // Lambda handler
-export const handler: DynamoDBStreamHandler = async (event) => {
+export async function handler(event: DynamoDBStreamEvent) {
 	const result = await router.process(event);
 
 	// Records from other regions are automatically skipped
@@ -49,9 +49,7 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 		`Processed ${result.processed} records ` +
 			`(some may have been skipped due to region filtering)`,
 	);
-
-	return result;
-};
+}
 
 // Placeholder function
 async function notifyLocalServices(user: User) {

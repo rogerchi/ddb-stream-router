@@ -3,8 +3,11 @@
  *
  * This example shows how to collect multiple records and process
  * them together, useful for bulk operations or aggregations.
+ *
+ * Note: Batch processing collects all matching records from a single
+ * Lambda invocation and passes them to the handler as an array.
  */
-import type { DynamoDBStreamHandler } from "aws-lambda";
+import type { DynamoDBStreamEvent } from "aws-lambda";
 import { StreamRouter, type HandlerContext } from "../src";
 
 // Entity types
@@ -38,11 +41,16 @@ const isAuditLog = (record: unknown): record is AuditLog =>
 
 const router = new StreamRouter();
 
+// Type for batch records
+type BatchRecord<T> = { newImage: T; ctx: HandlerContext };
+type BatchModifyRecord<T> = { oldImage: T; newImage: T; ctx: HandlerContext };
+
 // Batch all inventory changes together
 // Handler receives array of all matching records at once
-router.insert(
+// Note: When using batch: true, cast the handler to work around type inference
+(router.insert as Function)(
 	isInventoryChange,
-	async (records: Array<{ newImage: InventoryChange; ctx: HandlerContext }>) => {
+	async (records: BatchRecord<InventoryChange>[]) => {
 		console.log(`Processing ${records.length} inventory changes in batch`);
 
 		// Aggregate changes by product
@@ -60,9 +68,9 @@ router.insert(
 
 // Batch audit logs by user ID
 // Records are grouped by the batchKey before handler is called
-router.insert(
+(router.insert as Function)(
 	isAuditLog,
-	async (records: Array<{ newImage: AuditLog; ctx: HandlerContext }>) => {
+	async (records: BatchRecord<AuditLog>[]) => {
 		const userId = records[0].newImage.userId;
 		console.log(`Processing ${records.length} audit logs for user ${userId}`);
 
@@ -76,10 +84,10 @@ router.insert(
 );
 
 // You can also use a function for complex batch keys
-router.modify(
+(router.modify as Function)(
 	isInventoryChange,
-	async (records) => {
-		const warehouseId = (records[0] as { newImage: InventoryChange }).newImage.warehouseId;
+	async (records: BatchModifyRecord<InventoryChange>[]) => {
+		const warehouseId = records[0].newImage.warehouseId;
 		console.log(`Processing inventory updates for warehouse ${warehouseId}`);
 	},
 	{
@@ -89,10 +97,10 @@ router.modify(
 );
 
 // Lambda handler
-export const handler: DynamoDBStreamHandler = async (event) => {
+export async function handler(event: DynamoDBStreamEvent) {
 	const result = await router.process(event);
 	console.log(`Batch processed ${result.processed} records`);
-};
+}
 
 // Placeholder functions
 async function bulkUpdateInventory(changes: Map<string, number>) {
