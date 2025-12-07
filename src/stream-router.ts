@@ -55,6 +55,12 @@ export class HandlerRegistration<
 
 	/**
 	 * Mark this handler as deferred - enqueues to SQS from stream, executes from SQS.
+	 *
+	 * Note: When used with batch handlers, each matching record is enqueued individually
+	 * to SQS. The SQS Lambda trigger's batch settings will determine how records are
+	 * grouped when processed. This means records that would have been processed together
+	 * in a non-deferred batch handler may be split across multiple SQS batches.
+	 * There is no guarantee that related records will be processed together.
 	 */
 	defer(options?: DeferOptions): StreamRouter<V> {
 		const handler = this.router.handlers.find((h) => h.id === this.handlerId);
