@@ -59,8 +59,8 @@ export interface HandlerOptions {
 
 // Primary key configuration for batch grouping
 export interface PrimaryKeyConfig {
-	pk: string; // Partition key attribute name
-	sk?: string; // Sort key attribute name (optional for simple primary keys)
+	partitionKey: string; // Partition key attribute name
+	sortKey?: string; // Sort key attribute name (optional for simple primary keys)
 }
 
 // Batch handler options with grouping key

@@ -594,8 +594,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		return (
 			typeof batchKey === "object" &&
 			batchKey !== null &&
-			"pk" in batchKey &&
-			typeof batchKey.pk === "string"
+			"partitionKey" in batchKey &&
+			typeof batchKey.partitionKey === "string"
 		);
 	}
 
@@ -625,9 +625,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		if (this.isPrimaryKeyConfig(options.batchKey)) {
 			if (imageData && typeof imageData === "object") {
 				const data = imageData as Record<string, unknown>;
-				const pkValue = String(data[options.batchKey.pk] ?? "__undefined__");
-				if (options.batchKey.sk) {
-					const skValue = String(data[options.batchKey.sk] ?? "__undefined__");
+				const pkValue = String(
+					data[options.batchKey.partitionKey] ?? "__undefined__",
+				);
+				if (options.batchKey.sortKey) {
+					const skValue = String(
+						data[options.batchKey.sortKey] ?? "__undefined__",
+					);
 					return `${pkValue}#${skValue}`;
 				}
 				return pkValue;

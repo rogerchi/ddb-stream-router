@@ -94,7 +94,7 @@ router.modify(
 	},
 	{
 		batch: true,
-		batchKey: { pk: "pk", sk: "sk" }, // Group by composite primary key
+		batchKey: { partitionKey: "pk", sortKey: "sk" }, // Group by composite primary key
 	},
 );
 
@@ -104,11 +104,13 @@ router.remove(
 	isInventoryChange,
 	async (records) => {
 		const warehouseId = records[0].oldImage.warehouseId;
-		console.log(`Processing ${records.length} deletions for warehouse ${warehouseId}`);
+		console.log(
+			`Processing ${records.length} deletions for warehouse ${warehouseId}`,
+		);
 	},
 	{
 		batch: true,
-		batchKey: { pk: "pk" }, // Group by partition key only
+		batchKey: { partitionKey: "pk" }, // Group by partition key only
 	},
 );
 
