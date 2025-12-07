@@ -11,9 +11,15 @@ const project = new typescript.TypeScriptProject({
 		"@types/aws-lambda",
 		"@shelf/jest-dynamodb",
 		"@aws-sdk/client-dynamodb",
+		"@aws-sdk/client-dynamodb-streams",
 		"@aws-sdk/lib-dynamodb",
 	],
 	peerDeps: ["@aws-sdk/util-dynamodb"],
+	jestOptions: {
+		jestConfig: {
+			preset: "@shelf/jest-dynamodb",
+		},
+	},
 });
 
 project.synth();

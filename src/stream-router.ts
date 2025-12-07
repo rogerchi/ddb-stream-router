@@ -1,8 +1,9 @@
+import type { AttributeValue as SDKAttributeValue } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import type {
-	AttributeValue,
 	DynamoDBRecord,
 	DynamoDBStreamEvent,
+	AttributeValue as LambdaAttributeValue,
 } from "aws-lambda";
 import { diffAttributes, hasAttributeChange } from "./attribute-diff";
 import { ConfigurationError } from "./errors";
@@ -40,7 +41,9 @@ const VALID_STREAM_VIEW_TYPES: StreamViewType[] = [
 /**
  * HandlerRegistration allows chaining .defer() after handler registration.
  */
-export class HandlerRegistration<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
+export class HandlerRegistration<
+	V extends StreamViewType = "NEW_AND_OLD_IMAGES",
+> {
 	constructor(
 		private readonly router: StreamRouter<V>,
 		private readonly handlerId: string,
@@ -84,7 +87,9 @@ export class HandlerRegistration<V extends StreamViewType = "NEW_AND_OLD_IMAGES"
 	modify<T>(
 		matcher: Matcher<T>,
 		handler: ModifyHandler<T, V>,
-		options?: ModifyHandlerOptions | (BatchHandlerOptions & ModifyHandlerOptions),
+		options?:
+			| ModifyHandlerOptions
+			| (BatchHandlerOptions & ModifyHandlerOptions),
 	): HandlerRegistration<V> {
 		return this.router.modify(matcher, handler, options);
 	}
@@ -275,11 +280,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Unmarshalls DynamoDB attribute map to native JavaScript object.
 	 */
 	private unmarshallImage(
-		image: { [key: string]: AttributeValue } | undefined,
+		image: { [key: string]: LambdaAttributeValue } | undefined,
 	): Record<string, unknown> | undefined {
 		if (!image) return undefined;
 		if (!this._unmarshall) return image as Record<string, unknown>;
-		return unmarshall(image);
+		// Cast Lambda AttributeValue to SDK AttributeValue for unmarshall
+		return unmarshall(image as Record<string, SDKAttributeValue>);
 	}
 
 	/**
@@ -643,7 +649,11 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 								}
 								const handlerBatches = batchCollector.get(handler.id);
 								if (handlerBatches) {
-									const batchKey = this.getBatchKey(handler, record, parsedData);
+									const batchKey = this.getBatchKey(
+										handler,
+										record,
+										parsedData,
+									);
 									if (!handlerBatches.has(batchKey)) {
 										handlerBatches.set(batchKey, []);
 									}

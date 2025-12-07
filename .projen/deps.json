@@ -5,6 +5,10 @@
       "type": "build"
     },
     {
+      "name": "@aws-sdk/client-dynamodb-streams",
+      "type": "build"
+    },
+    {
       "name": "@aws-sdk/lib-dynamodb",
       "type": "build"
     },
