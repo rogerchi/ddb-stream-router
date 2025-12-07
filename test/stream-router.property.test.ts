@@ -1318,6 +1318,76 @@ describe("Batch Processing Properties", () => {
 		expect(handler.mock.calls[0][0]).toHaveLength(3);
 	});
 
+	test("Property 19: PrimaryKeyConfig groups by partition key only", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (
+			record: unknown,
+		): record is { pk: string; sk: string; data: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.insert(discriminator, handler, {
+			batch: true,
+			batchKey: { partitionKey: "pk" },
+		});
+
+		const records = [
+			createMockRecord("INSERT", { pk: "user#1", sk: "profile", data: "a" }),
+			createMockRecord("INSERT", { pk: "user#1", sk: "settings", data: "b" }),
+			createMockRecord("INSERT", { pk: "user#2", sk: "profile", data: "c" }),
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		// Should be 2 groups: user#1 (2 records) and user#2 (1 record)
+		expect(handler).toHaveBeenCalledTimes(2);
+
+		const calls = handler.mock.calls.map((call) => call[0]);
+		const user1Group = calls.find((c) => c.length === 2);
+		const user2Group = calls.find((c) => c.length === 1);
+
+		expect(user1Group).toBeDefined();
+		expect(user2Group).toBeDefined();
+	});
+
+	test("Property 19: PrimaryKeyConfig groups by composite key (partition + sort)", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (
+			record: unknown,
+		): record is { pk: string; sk: string; version: number } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.insert(discriminator, handler, {
+			batch: true,
+			batchKey: { partitionKey: "pk", sortKey: "sk" },
+		});
+
+		const records = [
+			createMockRecord("INSERT", { pk: "user#1", sk: "profile", version: 1 }),
+			createMockRecord("INSERT", { pk: "user#1", sk: "profile", version: 2 }), // Same pk+sk
+			createMockRecord("INSERT", { pk: "user#1", sk: "settings", version: 1 }), // Different sk
+			createMockRecord("INSERT", { pk: "user#2", sk: "profile", version: 1 }), // Different pk
+		];
+		const event = createMockEvent(records);
+
+		await router.process(event);
+
+		// Should be 3 groups:
+		// - user#1#profile (2 records)
+		// - user#1#settings (1 record)
+		// - user#2#profile (1 record)
+		expect(handler).toHaveBeenCalledTimes(3);
+
+		const calls = handler.mock.calls.map((call) => call[0]);
+		const twoRecordGroup = calls.find((c) => c.length === 2);
+		const oneRecordGroups = calls.filter((c) => c.length === 1);
+
+		expect(twoRecordGroup).toBeDefined();
+		expect(oneRecordGroups).toHaveLength(2);
+	});
+
 	test("Batch mode works with MODIFY events", async () => {
 		const router = new StreamRouter();
 		const handler = jest.fn();
