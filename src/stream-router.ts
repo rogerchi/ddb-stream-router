@@ -4,8 +4,10 @@ import type {
 	DynamoDBRecord,
 	DynamoDBStreamEvent,
 } from "aws-lambda";
+import { diffAttributes, hasAttributeChange } from "./attribute-diff";
 import { ConfigurationError } from "./errors";
 import type {
+	AttributeChangeType,
 	BatchHandlerOptions,
 	HandlerContext,
 	HandlerFunction,
@@ -247,6 +249,36 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	}
 
 	/**
+	 * Checks if a MODIFY handler's attribute filter matches the record changes.
+	 * Returns true if no attribute filter is specified, or if the filter matches.
+	 * Multiple attribute filters use OR logic.
+	 */
+	private matchesAttributeFilter(
+		handler: RegisteredHandler,
+		oldImage: Record<string, unknown> | undefined,
+		newImage: Record<string, unknown> | undefined,
+	): boolean {
+		const options = handler.options as ModifyHandlerOptions;
+
+		// No attribute filter specified - match all MODIFY events
+		if (!options.attribute) {
+			return true;
+		}
+
+		// Compute the diff between old and new images
+		const diff = diffAttributes(oldImage, newImage);
+
+		// Check if the specified attribute has the required change type(s)
+		const changeTypes = options.changeType;
+
+		return hasAttributeChange(
+			diff,
+			options.attribute,
+			changeTypes as AttributeChangeType | AttributeChangeType[] | undefined,
+		);
+	}
+
+	/**
 	 * Gets the appropriate image data for matching based on event type.
 	 */
 	private getMatchingImage(
@@ -277,7 +309,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		parsedData: unknown | undefined,
 		ctx: HandlerContext,
 	): Promise<void> {
-		const newImage = parsedData ?? this.unmarshallImage(record.dynamodb?.NewImage);
+		const newImage =
+			parsedData ?? this.unmarshallImage(record.dynamodb?.NewImage);
 		const oldImage = this.unmarshallImage(record.dynamodb?.OldImage);
 		const keys = this.unmarshallImage(record.dynamodb?.Keys);
 
@@ -336,7 +369,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 			try {
 				// Check same region filter
-				if (this._sameRegionOnly && !this.isRecordFromSameRegion(record.eventSourceARN)) {
+				if (
+					this._sameRegionOnly &&
+					!this.isRecordFromSameRegion(record.eventSourceARN)
+				) {
 					result.succeeded++;
 					continue;
 				}
@@ -353,9 +389,22 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					(h) => h.eventType === eventType,
 				);
 
+				// Get images for attribute filtering (MODIFY events)
+				const oldImage = this.unmarshallImage(record.dynamodb?.OldImage);
+				const newImage = this.unmarshallImage(record.dynamodb?.NewImage);
+
 				for (const handler of matchingHandlers) {
-					const { matches, parsedData } = this.matchHandler(handler, matchingImage);
+					const { matches, parsedData } = this.matchHandler(
+						handler,
+						matchingImage,
+					);
 					if (matches) {
+						// For MODIFY events, check attribute filter
+						if (eventType === "MODIFY") {
+							if (!this.matchesAttributeFilter(handler, oldImage, newImage)) {
+								continue; // Skip handler if attribute filter doesn't match
+							}
+						}
 						await this.invokeHandler(handler, record, parsedData, ctx);
 					}
 				}

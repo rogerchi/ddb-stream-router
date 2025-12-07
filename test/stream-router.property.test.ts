@@ -477,7 +477,6 @@ describe("StreamRouter Event Processing Properties", () => {
 	});
 });
 
-
 describe("StreamRouter Stream View Type Properties", () => {
 	/**
 	 * **Feature: dynamodb-stream-router, Property 10: Stream view type determines available image data**
@@ -490,7 +489,9 @@ describe("StreamRouter Stream View Type Properties", () => {
 
 		router.insert(discriminator, handler);
 
-		const record = createMockRecord("INSERT", { id: "test" }, undefined, { pk: "key1" });
+		const record = createMockRecord("INSERT", { id: "test" }, undefined, {
+			pk: "key1",
+		});
 		const event = createMockEvent([record]);
 
 		await router.process(event);
@@ -555,7 +556,9 @@ describe("StreamRouter Unmarshalling Properties", () => {
 	test("Property 21: Unmarshalling disabled passes raw format", async () => {
 		const router = new StreamRouter({ unmarshall: false });
 		const handler = jest.fn();
-		const discriminator = (_record: unknown): _record is Record<string, unknown> => true;
+		const discriminator = (
+			_record: unknown,
+		): _record is Record<string, unknown> => true;
 
 		router.insert(discriminator, handler);
 
@@ -599,7 +602,8 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const record: DynamoDBRecord = {
 			eventID: "test",
 			eventName: "INSERT",
-			eventSourceARN: "arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+			eventSourceARN:
+				"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
 			dynamodb: {
 				Keys: { pk: { S: "test" } },
 				NewImage: { id: { S: "test" } },
@@ -629,7 +633,8 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const record: DynamoDBRecord = {
 			eventID: "test",
 			eventName: "INSERT",
-			eventSourceARN: "arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+			eventSourceARN:
+				"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
 			dynamodb: {
 				Keys: { pk: { S: "test" } },
 				NewImage: { id: { S: "test" } },
@@ -658,7 +663,8 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const record: DynamoDBRecord = {
 			eventID: "test",
 			eventName: "INSERT",
-			eventSourceARN: "arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+			eventSourceARN:
+				"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
 			dynamodb: {
 				Keys: { pk: { S: "test" } },
 				NewImage: { id: { S: "test" } },
@@ -682,7 +688,8 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const record: DynamoDBRecord = {
 			eventID: "test",
 			eventName: "INSERT",
-			eventSourceARN: "arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+			eventSourceARN:
+				"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
 			dynamodb: {
 				Keys: { pk: { S: "test" } },
 				NewImage: { id: { S: "test" } },
@@ -693,5 +700,408 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		await router.process(event);
 
 		expect(handler).toHaveBeenCalledTimes(1);
+	});
+});
+
+import { diffAttributes, hasAttributeChange } from "../src/attribute-diff";
+
+describe("Attribute Change Detection Properties", () => {
+	/**
+	 * **Feature: dynamodb-stream-router, Property 15: Attribute change detection for scalar attributes**
+	 * **Validates: Requirements 9.1, 9.2, 9.3, 9.4**
+	 *
+	 * For any MODIFY event with attribute filter options:
+	 * - new_attribute: handler invoked only when attribute exists in newImage but not oldImage
+	 * - remove_attribute: handler invoked only when attribute exists in oldImage but not newImage
+	 * - changed_attribute: handler invoked only when attribute value differs between images
+	 */
+	test("Property 15: new_attribute detected when attribute exists only in newImage", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.oneof(fc.string(), fc.integer(), fc.boolean()),
+				(attrName, attrValue) => {
+					const oldImage: Record<string, unknown> = { existingAttr: "value" };
+					const newImage: Record<string, unknown> = {
+						existingAttr: "value",
+						[attrName]: attrValue,
+					};
+
+					// Only test when attrName is different from existingAttr
+					if (attrName === "existingAttr") return true;
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasNewAttr = hasAttributeChange(
+						diff,
+						attrName,
+						"new_attribute",
+					);
+
+					return hasNewAttr === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 15: remove_attribute detected when attribute exists only in oldImage", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.oneof(fc.string(), fc.integer(), fc.boolean()),
+				(attrName, attrValue) => {
+					const oldImage: Record<string, unknown> = {
+						existingAttr: "value",
+						[attrName]: attrValue,
+					};
+					const newImage: Record<string, unknown> = { existingAttr: "value" };
+
+					// Only test when attrName is different from existingAttr
+					if (attrName === "existingAttr") return true;
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasRemovedAttr = hasAttributeChange(
+						diff,
+						attrName,
+						"remove_attribute",
+					);
+
+					return hasRemovedAttr === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 15: changed_attribute detected when scalar value differs", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.string({ minLength: 1 }),
+				fc.string({ minLength: 1 }),
+				(attrName, oldValue, newValue) => {
+					// Ensure values are different
+					if (oldValue === newValue) return true;
+
+					const oldImage: Record<string, unknown> = { [attrName]: oldValue };
+					const newImage: Record<string, unknown> = { [attrName]: newValue };
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasChangedAttr = hasAttributeChange(
+						diff,
+						attrName,
+						"changed_attribute",
+					);
+
+					return hasChangedAttr === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 15: No change detected when attribute values are equal", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.oneof(fc.string(), fc.integer(), fc.boolean()),
+				(attrName, attrValue) => {
+					const oldImage: Record<string, unknown> = { [attrName]: attrValue };
+					const newImage: Record<string, unknown> = { [attrName]: attrValue };
+
+					const diff = diffAttributes(oldImage, newImage);
+
+					return diff.hasChanges === false;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+});
+
+describe("Collection Change Detection Properties", () => {
+	/**
+	 * **Feature: dynamodb-stream-router, Property 16: Collection change detection**
+	 * **Validates: Requirements 9.5, 9.6, 9.7**
+	 *
+	 * For any MODIFY event with collection attribute filter options:
+	 * - new_item_in_collection: handler invoked only when List/Map/Set has items added
+	 * - remove_item_from_collection: handler invoked only when List/Map/Set has items removed
+	 * - changed_item_in_collection: handler invoked only when List/Map items are modified
+	 */
+	test("Property 16: new_item_in_collection detected when array has items added", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.array(fc.string(), { minLength: 0, maxLength: 5 }),
+				fc.string({ minLength: 1 }),
+				(attrName, existingItems, newItem) => {
+					const oldImage: Record<string, unknown> = {
+						[attrName]: [...existingItems],
+					};
+					const newImage: Record<string, unknown> = {
+						[attrName]: [...existingItems, newItem],
+					};
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasNewItem = hasAttributeChange(
+						diff,
+						attrName,
+						"new_item_in_collection",
+					);
+
+					return hasNewItem === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 16: remove_item_from_collection detected when array has items removed", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.array(fc.string(), { minLength: 1, maxLength: 5 }),
+				(attrName, items) => {
+					const oldImage: Record<string, unknown> = { [attrName]: [...items] };
+					const newImage: Record<string, unknown> = {
+						[attrName]: items.slice(0, -1),
+					};
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasRemovedItem = hasAttributeChange(
+						diff,
+						attrName,
+						"remove_item_from_collection",
+					);
+
+					return hasRemovedItem === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 16: new_item_in_collection detected when map has keys added", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.string({ minLength: 1, maxLength: 10 }),
+				fc.string({ minLength: 1 }),
+				(attrName, newKey, newValue) => {
+					const oldImage: Record<string, unknown> = {
+						[attrName]: { existingKey: "existingValue" },
+					};
+					const newImage: Record<string, unknown> = {
+						[attrName]: { existingKey: "existingValue", [newKey]: newValue },
+					};
+
+					// Skip if newKey is the same as existingKey
+					if (newKey === "existingKey") return true;
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasNewItem = hasAttributeChange(
+						diff,
+						attrName,
+						"new_item_in_collection",
+					);
+
+					return hasNewItem === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 16: remove_item_from_collection detected when map has keys removed", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.string({ minLength: 1, maxLength: 10 }),
+				fc.string({ minLength: 1 }),
+				(attrName, keyToRemove, value) => {
+					const oldImage: Record<string, unknown> = {
+						[attrName]: { existingKey: "existingValue", [keyToRemove]: value },
+					};
+					const newImage: Record<string, unknown> = {
+						[attrName]: { existingKey: "existingValue" },
+					};
+
+					// Skip if keyToRemove is the same as existingKey
+					if (keyToRemove === "existingKey") return true;
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasRemovedItem = hasAttributeChange(
+						diff,
+						attrName,
+						"remove_item_from_collection",
+					);
+
+					return hasRemovedItem === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 16: changed_item_in_collection detected when map value changes", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.string({ minLength: 1 }),
+				fc.string({ minLength: 1 }),
+				(attrName, oldValue, newValue) => {
+					// Ensure values are different
+					if (oldValue === newValue) return true;
+
+					const oldImage: Record<string, unknown> = {
+						[attrName]: { key: oldValue },
+					};
+					const newImage: Record<string, unknown> = {
+						[attrName]: { key: newValue },
+					};
+
+					const diff = diffAttributes(oldImage, newImage);
+					const hasChangedItem = hasAttributeChange(
+						diff,
+						attrName,
+						"changed_item_in_collection",
+					);
+
+					return hasChangedItem === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+});
+
+describe("Multiple Attribute Filter Properties", () => {
+	/**
+	 * **Feature: dynamodb-stream-router, Property 17: Multiple attribute filters use OR logic**
+	 * **Validates: Requirements 9.8**
+	 *
+	 * When multiple attribute filter conditions are specified, the handler should be
+	 * invoked when any one of the specified conditions is met.
+	 */
+	test("Property 17: Multiple change types use OR logic", () => {
+		fc.assert(
+			fc.property(
+				fc.string({ minLength: 1, maxLength: 20 }),
+				fc.oneof(fc.string(), fc.integer()),
+				(attrName, newValue) => {
+					// Test case: attribute is new (not in oldImage)
+					const oldImage: Record<string, unknown> = { otherAttr: "value" };
+					const newImage: Record<string, unknown> = {
+						otherAttr: "value",
+						[attrName]: newValue,
+					};
+
+					if (attrName === "otherAttr") return true;
+
+					const diff = diffAttributes(oldImage, newImage);
+
+					// Should match with OR logic - new_attribute OR changed_attribute
+					const matchesOr = hasAttributeChange(diff, attrName, [
+						"new_attribute",
+						"changed_attribute",
+					]);
+
+					// Should match because it's a new_attribute
+					return matchesOr === true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 17: Handler invoked when any filter condition matches", async () => {
+		await fc.assert(
+			fc.asyncProperty(
+				fc
+					.string({ minLength: 1, maxLength: 10 })
+					.filter((s) => s !== "id" && s !== "pk"),
+				fc.string({ minLength: 1 }),
+				async (attrName, newValue) => {
+					const router = new StreamRouter();
+					const handler = jest.fn();
+					const discriminator = (
+						_record: unknown,
+					): _record is Record<string, unknown> => true;
+
+					// Register handler with multiple change types (OR logic)
+					router.modify(discriminator, handler, {
+						attribute: attrName,
+						changeType: ["new_attribute", "changed_attribute"],
+					});
+
+					// Create a MODIFY event where the attribute is new
+					const record: DynamoDBRecord = {
+						eventID: "test",
+						eventName: "MODIFY",
+						eventSourceARN:
+							"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+						dynamodb: {
+							Keys: { pk: { S: "test" } },
+							OldImage: { pk: { S: "test" }, id: { S: "existing" } },
+							NewImage: {
+								pk: { S: "test" },
+								id: { S: "existing" },
+								[attrName]: { S: newValue },
+							},
+						},
+					};
+					const event = createMockEvent([record]);
+
+					await router.process(event);
+
+					// Handler should be called because new_attribute matches
+					expect(handler).toHaveBeenCalledTimes(1);
+					return true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Property 17: Handler not invoked when no filter condition matches", async () => {
+		const router = new StreamRouter();
+		const handler = jest.fn();
+		const discriminator = (
+			_record: unknown,
+		): _record is Record<string, unknown> => true;
+
+		// Register handler looking for changes to "targetAttr"
+		router.modify(discriminator, handler, {
+			attribute: "targetAttr",
+			changeType: ["new_attribute", "changed_attribute"],
+		});
+
+		// Create a MODIFY event where targetAttr doesn't change
+		const record: DynamoDBRecord = {
+			eventID: "test",
+			eventName: "MODIFY",
+			eventSourceARN:
+				"arn:aws:dynamodb:us-east-1:123456789:table/test/stream/2024",
+			dynamodb: {
+				Keys: { pk: { S: "test" } },
+				OldImage: {
+					pk: { S: "test" },
+					targetAttr: { S: "same" },
+					otherAttr: { S: "old" },
+				},
+				NewImage: {
+					pk: { S: "test" },
+					targetAttr: { S: "same" },
+					otherAttr: { S: "new" },
+				},
+			},
+		};
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		// Handler should NOT be called because targetAttr didn't change
+		expect(handler).not.toHaveBeenCalled();
 	});
 });

@@ -51,7 +51,6 @@ export interface Parser<T> {
 	): { success: true; data: T } | { success: false; error: unknown };
 }
 
-
 // Union type for matcher parameter
 export type Matcher<T> = Discriminator<T> | Parser<T>;
 
@@ -75,9 +74,7 @@ export interface ProcessingResult {
 }
 
 // Generic handler function type
-export type HandlerFunction = (
-	...args: unknown[]
-) => void | Promise<void>;
+export type HandlerFunction = (...args: unknown[]) => void | Promise<void>;
 
 // Internal handler registration
 export interface RegisteredHandler<T = unknown> {
@@ -132,7 +129,11 @@ export type ModifyHandler<T, V extends StreamViewType> = V extends "KEYS_ONLY"
 					ctx: HandlerContext,
 				) => void | Promise<void>
 			: V extends "NEW_AND_OLD_IMAGES"
-				? (oldImage: T, newImage: T, ctx: HandlerContext) => void | Promise<void>
+				? (
+						oldImage: T,
+						newImage: T,
+						ctx: HandlerContext,
+					) => void | Promise<void>
 				: never;
 
 export type RemoveHandler<T, V extends StreamViewType> = V extends "KEYS_ONLY"
@@ -144,35 +145,41 @@ export type RemoveHandler<T, V extends StreamViewType> = V extends "KEYS_ONLY"
 			: never;
 
 // Batch handler signatures - receive arrays of records
-export type BatchInsertHandler<T, V extends StreamViewType> =
-	V extends "KEYS_ONLY"
+export type BatchInsertHandler<
+	T,
+	V extends StreamViewType,
+> = V extends "KEYS_ONLY"
+	? (
+			records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+		) => void | Promise<void>
+	: V extends "NEW_IMAGE" | "NEW_AND_OLD_IMAGES"
 		? (
-				records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+				records: Array<{ newImage: T; ctx: HandlerContext }>,
 			) => void | Promise<void>
-		: V extends "NEW_IMAGE" | "NEW_AND_OLD_IMAGES"
-			? (
-					records: Array<{ newImage: T; ctx: HandlerContext }>,
-				) => void | Promise<void>
-			: never;
+		: never;
 
-export type BatchModifyHandler<T, V extends StreamViewType> =
-	V extends "KEYS_ONLY"
+export type BatchModifyHandler<
+	T,
+	V extends StreamViewType,
+> = V extends "KEYS_ONLY"
+	? (
+			records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+		) => void | Promise<void>
+	: V extends "NEW_AND_OLD_IMAGES"
 		? (
-				records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+				records: Array<{ oldImage: T; newImage: T; ctx: HandlerContext }>,
 			) => void | Promise<void>
-		: V extends "NEW_AND_OLD_IMAGES"
-			? (
-					records: Array<{ oldImage: T; newImage: T; ctx: HandlerContext }>,
-				) => void | Promise<void>
-			: never;
+		: never;
 
-export type BatchRemoveHandler<T, V extends StreamViewType> =
-	V extends "KEYS_ONLY"
+export type BatchRemoveHandler<
+	T,
+	V extends StreamViewType,
+> = V extends "KEYS_ONLY"
+	? (
+			records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+		) => void | Promise<void>
+	: V extends "OLD_IMAGE" | "NEW_AND_OLD_IMAGES"
 		? (
-				records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+				records: Array<{ oldImage: T; ctx: HandlerContext }>,
 			) => void | Promise<void>
-		: V extends "OLD_IMAGE" | "NEW_AND_OLD_IMAGES"
-			? (
-					records: Array<{ oldImage: T; ctx: HandlerContext }>,
-				) => void | Promise<void>
-			: never;
+		: never;
