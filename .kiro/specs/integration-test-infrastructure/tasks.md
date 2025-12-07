@@ -1,0 +1,80 @@
+# Implementation Plan
+
+- [ ] 1. Set up integration test directory structure
+  - Create `integ/` directory for CDK app and test files
+  - Create `integ/cdk.json` with app configuration
+  - Create `integ/tsconfig.json` extending root config
+  - Add CDK dependencies to package.json devDependencies
+  - _Requirements: 1.1-1.5_
+
+- [ ] 2. Implement CDK stack
+  - [ ] 2.1 Create DynamoDB table with stream
+    - Table with pk (partition key) and sk (sort key)
+    - Stream enabled with NEW_AND_OLD_IMAGES view type
+    - RemovalPolicy.DESTROY for easy cleanup
+    - _Requirements: 1.1, 4.2_
+  - [ ] 2.2 Create SQS queues
+    - Standard queue for deferred processing
+    - FIFO queue for verification with content-based deduplication
+    - _Requirements: 1.2, 1.3_
+  - [ ] 2.3 Create Lambda function with bundled handler
+    - Node.js 20 runtime
+    - Bundle handler code using NodejsFunction
+    - Environment variables for queue URLs
+    - _Requirements: 1.4_
+  - [ ] 2.4 Create event source mappings
+    - DynamoDB stream → Lambda with batch size 10
+    - Defer queue → Lambda with batch size 10
+    - _Requirements: 2.1-2.5_
+  - [ ] 2.5 Configure stack outputs
+    - Output TableArn, TableName, DeferQueueUrl, VerificationQueueUrl, HandlerFunctionArn
+    - _Requirements: 1.5_
+
+- [ ] 3. Implement Lambda handler
+  - [ ] 3.1 Create StreamRouter with immediate handlers
+    - onInsert handler writes to verification queue
+    - onModify handler writes to verification queue
+    - onRemove handler writes to verification queue
+    - _Requirements: 2.1, 2.2, 2.3_
+  - [ ] 3.2 Add deferred handler for INSERT
+    - Deferred onInsert handler with defer queue
+    - Writes to verification queue after processing
+    - _Requirements: 2.4, 2.5_
+  - [ ] 3.3 Implement verification message format
+    - Include operationType, isDeferred, pk, sk, timestamp
+    - Use FIFO message group ID based on pk
+    - _Requirements: 5.1-5.4_
+  - [ ] 3.4 Export streamHandler and sqsHandler
+    - Use router.streamHandler for DynamoDB stream
+    - Use router.sqsHandler for SQS defer queue
+    - _Requirements: 2.1-2.5_
+
+- [ ] 4. Implement test runner
+  - [ ] 4.1 Create config loader
+    - Read .cdk.outputs.integration.json
+    - Parse and validate required fields
+    - _Requirements: 1.5, 3.4_
+  - [ ] 4.2 Implement DynamoDB operations
+    - PutItem for INSERT test
+    - UpdateItem for MODIFY test
+    - DeleteItem for REMOVE test
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [ ] 4.3 Implement verification queue polling
+    - Poll with timeout (60s) and interval (5s)
+    - Collect and parse messages
+    - Delete messages after reading
+    - _Requirements: 3.4_
+  - [ ] 4.4 Implement test assertions
+    - Verify message counts per operation
+    - Verify message content matches expectations
+    - Report success/failure with details
+    - _Requirements: 3.1-3.5_
+
+- [ ] 5. Add npm scripts and documentation
+  - Add integ:deploy, integ:test, integ:destroy scripts to package.json
+  - Add integration test section to README or create integ/README.md
+  - _Requirements: 1.1, 4.1_
+
+- [ ] 6. Checkpoint - Verify integration tests work
+  - Deploy stack, run tests, destroy stack
+  - Ensure all tests pass, ask the user if questions arise.
