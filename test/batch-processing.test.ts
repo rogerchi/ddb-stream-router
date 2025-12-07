@@ -337,6 +337,123 @@ describe("Batch Processing", () => {
 		});
 	});
 
+	describe("Batch Handler Errors", () => {
+		test("batch handler error is captured in processing result", async () => {
+			const router = new StreamRouter();
+			const handler = jest.fn().mockImplementation(() => {
+				throw new Error("Batch processing failed");
+			});
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("USER#");
+
+			router.onInsert(isUser, handler, { batch: true });
+
+			const records = [
+				createStreamRecord(
+					"INSERT",
+					{ pk: "USER#1", sk: "profile" },
+					{ pk: "USER#1", sk: "profile", name: "Alice" },
+				),
+				createStreamRecord(
+					"INSERT",
+					{ pk: "USER#2", sk: "profile" },
+					{ pk: "USER#2", sk: "profile", name: "Bob" },
+				),
+			];
+			const event = createStreamEvent(records);
+
+			const result = await router.process(event);
+
+			// Records are processed successfully (collected for batch)
+			// but batch handler execution fails
+			expect(result.succeeded).toBe(2);
+			expect(result.failed).toBe(1);
+			expect(result.errors).toHaveLength(1);
+			expect(result.errors[0].error.message).toBe("Batch processing failed");
+			expect(result.errors[0].recordId).toMatch(/^batch_/);
+		});
+
+		test("batch handler error with non-Error thrown is wrapped", async () => {
+			const router = new StreamRouter();
+			const handler = jest.fn().mockImplementation(() => {
+				throw "String error"; // Non-Error thrown
+			});
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" && record !== null;
+
+			router.onInsert(isUser, handler, { batch: true });
+
+			const records = [
+				createStreamRecord(
+					"INSERT",
+					{ pk: "USER#1", sk: "profile" },
+					{ pk: "USER#1", sk: "profile" },
+				),
+			];
+			const event = createStreamEvent(records);
+
+			const result = await router.process(event);
+
+			expect(result.failed).toBe(1);
+			expect(result.errors[0].error.message).toBe("String error");
+		});
+
+		test("multiple batch handlers with one failing", async () => {
+			const router = new StreamRouter();
+			const successHandler = jest.fn();
+			const failHandler = jest.fn().mockImplementation(() => {
+				throw new Error("Handler 2 failed");
+			});
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("USER#");
+
+			const isOrder = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("ORDER#");
+
+			router.onInsert(isUser, successHandler, { batch: true });
+			router.onInsert(isOrder, failHandler, { batch: true });
+
+			const records = [
+				createStreamRecord(
+					"INSERT",
+					{ pk: "USER#1", sk: "profile" },
+					{ pk: "USER#1", sk: "profile" },
+				),
+				createStreamRecord(
+					"INSERT",
+					{ pk: "ORDER#1", sk: "details" },
+					{ pk: "ORDER#1", sk: "details" },
+				),
+			];
+			const event = createStreamEvent(records);
+
+			const result = await router.process(event);
+
+			// Both records processed successfully
+			expect(result.succeeded).toBe(2);
+			// One batch handler failed
+			expect(result.failed).toBe(1);
+			expect(result.errors[0].error.message).toBe("Handler 2 failed");
+
+			// Success handler was called
+			expect(successHandler).toHaveBeenCalledTimes(1);
+			// Fail handler was called (and threw)
+			expect(failHandler).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	describe("Mixed Batch and Non-Batch Handlers", () => {
 		test("batch and non-batch handlers can coexist", async () => {
 			const router = new StreamRouter();

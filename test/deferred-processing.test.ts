@@ -321,6 +321,93 @@ describe("Deferred Processing with SQS", () => {
 	});
 
 	describe("Processing from SQS", () => {
+		test("processDeferred fails when handler ID does not exist", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			// Register a handler but use a different ID in the message
+			const handler = jest.fn();
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" && record !== null;
+
+			router.onInsert(isUser, handler).defer();
+
+			const originalRecord = createStreamRecord(
+				"INSERT",
+				{ pk: "user#1", sk: "profile" },
+				{ pk: "user#1", sk: "profile", name: "Test User" },
+			);
+
+			// Use a non-existent handler ID
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify({
+							handlerId: "non_existent_handler_id",
+							record: originalRecord,
+						} as DeferredRecordMessage),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent);
+
+			expect(result.processed).toBe(1);
+			expect(result.failed).toBe(1);
+			expect(result.succeeded).toBe(0);
+			expect(result.errors[0].error.message).toBe(
+				"Handler not found: non_existent_handler_id",
+			);
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		test("processDeferred reports missing handler in batchItemFailures", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			const handler = jest.fn();
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" && record !== null;
+
+			router.onInsert(isUser, handler).defer();
+
+			const originalRecord = createStreamRecord(
+				"INSERT",
+				{ pk: "user#1", sk: "profile" },
+				{ pk: "user#1", sk: "profile" },
+			);
+
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-missing-handler",
+						body: JSON.stringify({
+							handlerId: "non_existent_handler_id",
+							record: originalRecord,
+						}),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent, {
+				reportBatchItemFailures: true,
+			});
+
+			expect(result.batchItemFailures).toHaveLength(1);
+			expect(result.batchItemFailures[0].itemIdentifier).toBe(
+				"msg-missing-handler",
+			);
+		});
+
 		test("processDeferred executes handler from SQS message", async () => {
 			const sqsClient = new SQSClient({ region: "us-east-1" });
 			const router = new StreamRouter({
