@@ -24,7 +24,7 @@
     - **Property 2: Invalid stream view type configuration is rejected**
     - **Validates: Requirements 1.3**
 
-- [-] 3. Implement StreamRouter class foundation
+- [x] 3. Implement StreamRouter class foundation
   - [x] 3.1 Create StreamRouter class with constructor
     - Implement constructor accepting StreamRouterOptions
     - Store streamViewType configuration (default to NEW_AND_OLD_IMAGES)
@@ -40,7 +40,7 @@
     - Store handlers in registry with event type, matcher, options, and isParser flag
     - Return `this` for method chaining
     - _Requirements: 2.1, 2.2, 3.1, 3.2, 4.1, 4.2_
-  - [-] 3.3 Write property test for handler registration
+  - [x] 3.3 Write property test for handler registration
     - **Property 3: Handler registration preserves handler across all event types**
     - **Validates: Requirements 2.1, 3.1, 4.1**
 
