@@ -770,4 +770,160 @@ describe("Deferred Handler Tests with SQS Mock", () => {
 			expect.any(Object),
 		);
 	});
+
+	test("processDeferred returns all failed message IDs in batchItemFailures", async () => {
+		const sqsClient = new SQSClient({ region: "us-east-1" });
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+			sqsClient: createSqsClientAdapter(sqsClient),
+		});
+
+		const handler = jest.fn().mockImplementation(() => {
+			throw new Error("Handler failed");
+		});
+		const isAny = (record: unknown): record is Record<string, unknown> =>
+			typeof record === "object" && record !== null;
+
+		router.insert(isAny, handler).defer();
+
+		const handlerId = router.handlers[0].id;
+
+		const record1 = createStreamRecord(
+			"INSERT",
+			{ pk: "item#1", sk: "data" },
+			{ pk: "item#1", sk: "data" },
+		);
+		const record2 = createStreamRecord(
+			"INSERT",
+			{ pk: "item#2", sk: "data" },
+			{ pk: "item#2", sk: "data" },
+		);
+
+		const sqsEvent = {
+			Records: [
+				{
+					messageId: "msg-1",
+					body: JSON.stringify({ handlerId, record: record1 }),
+				},
+				{
+					messageId: "msg-2",
+					body: JSON.stringify({ handlerId, record: record2 }),
+				},
+			],
+		};
+
+		const result = await router.processDeferred(sqsEvent, {
+			reportBatchItemFailures: true,
+		});
+
+		// Should return ALL failed message IDs (not just the first one)
+		expect(result.batchItemFailures).toHaveLength(2);
+		expect(result.batchItemFailures).toContainEqual({
+			itemIdentifier: "msg-1",
+		});
+		expect(result.batchItemFailures).toContainEqual({
+			itemIdentifier: "msg-2",
+		});
+	});
+
+	test("processDeferred returns empty batchItemFailures on success", async () => {
+		const sqsClient = new SQSClient({ region: "us-east-1" });
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+			sqsClient: createSqsClientAdapter(sqsClient),
+		});
+
+		const handler = jest.fn();
+		const isAny = (record: unknown): record is Record<string, unknown> =>
+			typeof record === "object" && record !== null;
+
+		router.insert(isAny, handler).defer();
+
+		const handlerId = router.handlers[0].id;
+
+		const record = createStreamRecord(
+			"INSERT",
+			{ pk: "item#1", sk: "data" },
+			{ pk: "item#1", sk: "data" },
+		);
+
+		const sqsEvent = {
+			Records: [
+				{
+					messageId: "msg-1",
+					body: JSON.stringify({ handlerId, record }),
+				},
+			],
+		};
+
+		const result = await router.processDeferred(sqsEvent, {
+			reportBatchItemFailures: true,
+		});
+
+		expect(result.batchItemFailures).toHaveLength(0);
+	});
+
+	test("processDeferred returns partial failures correctly", async () => {
+		const sqsClient = new SQSClient({ region: "us-east-1" });
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+			sqsClient: createSqsClientAdapter(sqsClient),
+		});
+
+		let callCount = 0;
+		const handler = jest.fn().mockImplementation(() => {
+			callCount++;
+			// Fail on second call only
+			if (callCount === 2) {
+				throw new Error("Handler failed");
+			}
+		});
+		const isAny = (record: unknown): record is Record<string, unknown> =>
+			typeof record === "object" && record !== null;
+
+		router.insert(isAny, handler).defer();
+
+		const handlerId = router.handlers[0].id;
+
+		const record1 = createStreamRecord(
+			"INSERT",
+			{ pk: "item#1", sk: "data" },
+			{ pk: "item#1", sk: "data" },
+		);
+		const record2 = createStreamRecord(
+			"INSERT",
+			{ pk: "item#2", sk: "data" },
+			{ pk: "item#2", sk: "data" },
+		);
+		const record3 = createStreamRecord(
+			"INSERT",
+			{ pk: "item#3", sk: "data" },
+			{ pk: "item#3", sk: "data" },
+		);
+
+		const sqsEvent = {
+			Records: [
+				{
+					messageId: "msg-1",
+					body: JSON.stringify({ handlerId, record: record1 }),
+				},
+				{
+					messageId: "msg-2",
+					body: JSON.stringify({ handlerId, record: record2 }),
+				},
+				{
+					messageId: "msg-3",
+					body: JSON.stringify({ handlerId, record: record3 }),
+				},
+			],
+		};
+
+		const result = await router.processDeferred(sqsEvent, {
+			reportBatchItemFailures: true,
+		});
+
+		// Only the second message should fail
+		expect(result.batchItemFailures).toHaveLength(1);
+		expect(result.batchItemFailures[0].itemIdentifier).toBe("msg-2");
+	});
 });

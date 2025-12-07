@@ -726,10 +726,25 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	/**
 	 * Process deferred records from an SQS event.
 	 * Executes only the specific deferred handler that enqueued each record.
+	 * @param sqsEvent The SQS event containing deferred records
+	 * @param options Processing options
+	 * @returns ProcessingResult or BatchItemFailuresResponse based on options
 	 */
+	async processDeferred(
+		sqsEvent: {
+			Records: Array<{ body: string; messageId: string }>;
+		},
+		options: ProcessOptions & { reportBatchItemFailures: true },
+	): Promise<BatchItemFailuresResponse>;
 	async processDeferred(sqsEvent: {
-		Records: Array<{ body: string }>;
-	}): Promise<ProcessingResult> {
+		Records: Array<{ body: string; messageId?: string }>;
+	}): Promise<ProcessingResult>;
+	async processDeferred(
+		sqsEvent: {
+			Records: Array<{ body: string; messageId?: string }>;
+		},
+		options?: ProcessOptions,
+	): Promise<ProcessingResult | BatchItemFailuresResponse> {
 		const result: ProcessingResult = {
 			processed: 0,
 			succeeded: 0,
@@ -737,9 +752,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			errors: [],
 		};
 
+		// Track all failed message IDs for SQS batch item failures
+		const failedMessageIds: string[] = [];
+
 		for (const sqsRecord of sqsEvent.Records) {
 			result.processed++;
-			const recordId = `deferred_${result.processed}`;
+			const recordId = sqsRecord.messageId ?? `deferred_${result.processed}`;
 
 			try {
 				const message: DeferredRecordMessage = JSON.parse(sqsRecord.body);
@@ -768,7 +786,21 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					error: error instanceof Error ? error : new Error(String(error)),
 					phase: "handler",
 				});
+
+				// Track failed message ID for batch item failures
+				if (sqsRecord.messageId) {
+					failedMessageIds.push(sqsRecord.messageId);
+				}
 			}
+		}
+
+		// Return batch item failures response if requested (all failed messages for SQS)
+		if (options?.reportBatchItemFailures) {
+			return {
+				batchItemFailures: failedMessageIds.map((id) => ({
+					itemIdentifier: id,
+				})),
+			};
 		}
 
 		return result;
