@@ -146,12 +146,12 @@ describe("StreamRouter Handler Registration Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 		const handler = jest.fn();
 
-		const result = router
+		// Chaining through HandlerRegistration proxy methods
+		router
 			.insert(discriminator, handler)
 			.modify(discriminator, handler)
 			.remove(discriminator, handler);
 
-		expect(result).toBe(router);
 		expect(router.handlers).toHaveLength(3);
 	});
 });
@@ -1573,5 +1573,235 @@ describe("Batch Item Failures Properties", () => {
 		expect(result).toHaveProperty("failed");
 		expect(result).toHaveProperty("errors");
 		expect(result).not.toHaveProperty("batchItemFailures");
+	});
+});
+
+describe("Defer Functionality Properties", () => {
+	// Mock SQS client for testing
+	const createMockSQSClient = () => {
+		const sentMessages: Array<{
+			QueueUrl: string;
+			MessageBody: string;
+			DelaySeconds?: number;
+		}> = [];
+		return {
+			sendMessage: jest.fn(async (params: {
+				QueueUrl: string;
+				MessageBody: string;
+				DelaySeconds?: number;
+			}) => {
+				sentMessages.push(params);
+				return {};
+			}),
+			sentMessages,
+		};
+	};
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 27: Deferred handlers enqueue during process()**
+	 * **Validates: Requirements 16.4, 16.6**
+	 *
+	 * For any handler marked with .defer(), when a matching record is processed via process(),
+	 * the router should enqueue the record to SQS instead of executing the handler code.
+	 */
+	test("Property 27: Deferred handlers enqueue during process()", async () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			sqsClient: mockSQS,
+		});
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.insert(discriminator, handler).defer();
+
+		const record = createMockRecord("INSERT", { id: "test123" });
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		// Handler should NOT be called directly
+		expect(handler).not.toHaveBeenCalled();
+
+		// SQS should have received the message
+		expect(mockSQS.sendMessage).toHaveBeenCalledTimes(1);
+		expect(mockSQS.sentMessages[0].QueueUrl).toBe(
+			"https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+		);
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 28: Deferred handlers execute during processDeferred()**
+	 * **Validates: Requirements 16.5, 16.7**
+	 *
+	 * For any handler marked with .defer(), when a matching deferred record is processed
+	 * via processDeferred(), the router should execute the handler code normally.
+	 */
+	test("Property 28: Deferred handlers execute during processDeferred()", async () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			sqsClient: mockSQS,
+		});
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		const registration = router.insert(discriminator, handler);
+		registration.defer();
+
+		// Get the handler ID from the router
+		const handlerId = router.handlers[0].id;
+
+		// Create a mock SQS event with the deferred record
+		const originalRecord = createMockRecord("INSERT", { id: "test123" });
+		const sqsEvent = {
+			Records: [
+				{
+					body: JSON.stringify({
+						handlerId,
+						record: originalRecord,
+					}),
+				},
+			],
+		};
+
+		await router.processDeferred(sqsEvent);
+
+		// Handler should be called
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 29: Defer queue option overrides router-level**
+	 * **Validates: Requirements 16.3**
+	 *
+	 * For any handler with .defer({ queue: 'custom-url' }), the record should be sent
+	 * to the specified queue, not the router's default deferQueue.
+	 */
+	test("Property 29: Defer queue option overrides router-level", async () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/default-queue",
+			sqsClient: mockSQS,
+		});
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.insert(discriminator, handler).defer({
+			queue: "https://sqs.us-east-1.amazonaws.com/123456789/custom-queue",
+		});
+
+		const record = createMockRecord("INSERT", { id: "test123" });
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		// Should use the custom queue, not the default
+		expect(mockSQS.sentMessages[0].QueueUrl).toBe(
+			"https://sqs.us-east-1.amazonaws.com/123456789/custom-queue",
+		);
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 30: Defer without queue throws ConfigurationError**
+	 * **Validates: Requirements 16.8**
+	 *
+	 * For any handler with .defer() when no queue is specified in defer options and no
+	 * router-level deferQueue is configured, the router should throw a ConfigurationError.
+	 */
+	test("Property 30: Defer without queue throws ConfigurationError", () => {
+		const router = new StreamRouter(); // No deferQueue configured
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		expect(() => {
+			router.insert(discriminator, handler).defer();
+		}).toThrow(ConfigurationError);
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 31: Deferred record includes handler ID**
+	 * **Validates: Requirements 16.6, 16.7**
+	 *
+	 * For any deferred record, the SQS message should include the handler ID so that
+	 * processDeferred() invokes only the specific handler that deferred it.
+	 */
+	test("Property 31: Deferred record includes handler ID", async () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			sqsClient: mockSQS,
+		});
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.insert(discriminator, handler).defer();
+
+		const handlerId = router.handlers[0].id;
+
+		const record = createMockRecord("INSERT", { id: "test123" });
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		// Parse the message body and verify handler ID is included
+		const messageBody = JSON.parse(mockSQS.sentMessages[0].MessageBody);
+		expect(messageBody.handlerId).toBe(handlerId);
+		expect(messageBody.record).toBeDefined();
+	});
+
+	test("Defer with delaySeconds passes delay to SQS", async () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			sqsClient: mockSQS,
+		});
+		const handler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		router.insert(discriminator, handler).defer({ delaySeconds: 30 });
+
+		const record = createMockRecord("INSERT", { id: "test123" });
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		expect(mockSQS.sentMessages[0].DelaySeconds).toBe(30);
+	});
+
+	test("Non-deferred handlers still execute immediately", async () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			sqsClient: mockSQS,
+		});
+		const immediateHandler = jest.fn();
+		const deferredHandler = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		// Register both immediate and deferred handlers
+		router.insert(discriminator, immediateHandler);
+		router.insert(discriminator, deferredHandler).defer();
+
+		const record = createMockRecord("INSERT", { id: "test123" });
+		const event = createMockEvent([record]);
+
+		await router.process(event);
+
+		// Immediate handler should be called
+		expect(immediateHandler).toHaveBeenCalledTimes(1);
+
+		// Deferred handler should NOT be called
+		expect(deferredHandler).not.toHaveBeenCalled();
+
+		// SQS should have received one message (for deferred handler)
+		expect(mockSQS.sendMessage).toHaveBeenCalledTimes(1);
 	});
 });

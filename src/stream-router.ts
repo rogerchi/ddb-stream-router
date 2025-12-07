@@ -10,6 +10,8 @@ import type {
 	AttributeChangeType,
 	BatchHandlerOptions,
 	BatchItemFailuresResponse,
+	DeferOptions,
+	DeferredRecordMessage,
 	HandlerContext,
 	HandlerFunction,
 	HandlerOptions,
@@ -23,6 +25,7 @@ import type {
 	ProcessOptions,
 	RegisteredHandler,
 	RemoveHandler,
+	SQSClient,
 	StreamRouterOptions,
 	StreamViewType,
 } from "./types";
@@ -34,10 +37,77 @@ const VALID_STREAM_VIEW_TYPES: StreamViewType[] = [
 	"NEW_AND_OLD_IMAGES",
 ];
 
+/**
+ * HandlerRegistration allows chaining .defer() after handler registration.
+ */
+export class HandlerRegistration<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
+	constructor(
+		private readonly router: StreamRouter<V>,
+		private readonly handlerId: string,
+	) {}
+
+	/**
+	 * Mark this handler as deferred - enqueues to SQS from stream, executes from SQS.
+	 */
+	defer(options?: DeferOptions): StreamRouter<V> {
+		const handler = this.router.handlers.find((h) => h.id === this.handlerId);
+		if (!handler) {
+			throw new ConfigurationError("Handler not found for defer configuration");
+		}
+
+		// Determine the queue URL
+		const queueUrl = options?.queue ?? this.router.deferQueue;
+		if (!queueUrl) {
+			throw new ConfigurationError(
+				"Cannot defer handler: no queue specified in defer options and no router-level deferQueue configured",
+			);
+		}
+
+		handler.deferred = true;
+		handler.deferOptions = {
+			queue: queueUrl,
+			delaySeconds: options?.delaySeconds,
+		};
+
+		return this.router;
+	}
+
+	// Proxy methods to continue chaining
+	insert<T>(
+		matcher: Matcher<T>,
+		handler: InsertHandler<T, V>,
+		options?: HandlerOptions | BatchHandlerOptions,
+	): HandlerRegistration<V> {
+		return this.router.insert(matcher, handler, options);
+	}
+
+	modify<T>(
+		matcher: Matcher<T>,
+		handler: ModifyHandler<T, V>,
+		options?: ModifyHandlerOptions | (BatchHandlerOptions & ModifyHandlerOptions),
+	): HandlerRegistration<V> {
+		return this.router.modify(matcher, handler, options);
+	}
+
+	remove<T>(
+		matcher: Matcher<T>,
+		handler: RemoveHandler<T, V>,
+		options?: HandlerOptions | BatchHandlerOptions,
+	): HandlerRegistration<V> {
+		return this.router.remove(matcher, handler, options);
+	}
+
+	use(middleware: MiddlewareFunction): StreamRouter<V> {
+		return this.router.use(middleware);
+	}
+}
+
 export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	private readonly _streamViewType: V;
 	private readonly _unmarshall: boolean;
 	private readonly _sameRegionOnly: boolean;
+	private readonly _deferQueue: string | undefined;
+	private readonly _sqsClient: SQSClient | undefined;
 	private readonly _handlers: RegisteredHandler[] = [];
 	private readonly _middleware: MiddlewareFunction[] = [];
 
@@ -54,6 +124,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		this._streamViewType = streamViewType;
 		this._unmarshall = options?.unmarshall ?? true;
 		this._sameRegionOnly = options?.sameRegionOnly ?? false;
+		this._deferQueue = options?.deferQueue;
+		this._sqsClient = options?.sqsClient;
 	}
 
 	get streamViewType(): V {
@@ -66,6 +138,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 	get sameRegionOnly(): boolean {
 		return this._sameRegionOnly;
+	}
+
+	get deferQueue(): string | undefined {
+		return this._deferQueue;
 	}
 
 	/** @internal */
@@ -128,9 +204,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		matcher: Matcher<T>,
 		handler: InsertHandler<T, V>,
 		options?: HandlerOptions | BatchHandlerOptions,
-	): this {
+	): HandlerRegistration<V> {
+		const handlerId = this.generateHandlerId();
 		const registration: RegisteredHandler<T> = {
-			id: this.generateHandlerId(),
+			id: handlerId,
 			eventType: "INSERT",
 			matcher,
 			handler: handler as HandlerFunction,
@@ -138,7 +215,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			isParser: this.isParser(matcher),
 		};
 		this._handlers.push(registration as RegisteredHandler);
-		return this;
+		return new HandlerRegistration(this, handlerId);
 	}
 
 	/**
@@ -150,9 +227,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		options?:
 			| ModifyHandlerOptions
 			| (BatchHandlerOptions & ModifyHandlerOptions),
-	): this {
+	): HandlerRegistration<V> {
+		const handlerId = this.generateHandlerId();
 		const registration: RegisteredHandler<T> = {
-			id: this.generateHandlerId(),
+			id: handlerId,
 			eventType: "MODIFY",
 			matcher,
 			handler: handler as HandlerFunction,
@@ -160,7 +238,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			isParser: this.isParser(matcher),
 		};
 		this._handlers.push(registration as RegisteredHandler);
-		return this;
+		return new HandlerRegistration(this, handlerId);
 	}
 
 	/**
@@ -170,9 +248,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		matcher: Matcher<T>,
 		handler: RemoveHandler<T, V>,
 		options?: HandlerOptions | BatchHandlerOptions,
-	): this {
+	): HandlerRegistration<V> {
+		const handlerId = this.generateHandlerId();
 		const registration: RegisteredHandler<T> = {
-			id: this.generateHandlerId(),
+			id: handlerId,
 			eventType: "REMOVE",
 			matcher,
 			handler: handler as HandlerFunction,
@@ -180,7 +259,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			isParser: this.isParser(matcher),
 		};
 		this._handlers.push(registration as RegisteredHandler);
-		return this;
+		return new HandlerRegistration(this, handlerId);
 	}
 
 	/**
@@ -441,6 +520,38 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	}
 
 	/**
+	 * Enqueues a record to SQS for deferred processing.
+	 */
+	private async enqueueDeferred(
+		handler: RegisteredHandler,
+		record: DynamoDBRecord,
+	): Promise<void> {
+		if (!this._sqsClient) {
+			throw new ConfigurationError(
+				"Cannot enqueue deferred record: no SQS client configured",
+			);
+		}
+
+		const queueUrl = handler.deferOptions?.queue;
+		if (!queueUrl) {
+			throw new ConfigurationError(
+				"Cannot enqueue deferred record: no queue URL configured",
+			);
+		}
+
+		const message: DeferredRecordMessage = {
+			handlerId: handler.id,
+			record: record,
+		};
+
+		await this._sqsClient.sendMessage({
+			QueueUrl: queueUrl,
+			MessageBody: JSON.stringify(message),
+			DelaySeconds: handler.deferOptions?.delaySeconds,
+		});
+	}
+
+	/**
 	 * Process a DynamoDB Stream event through the router.
 	 * @param event The DynamoDB Stream event to process
 	 * @param options Processing options
@@ -518,33 +629,39 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 							}
 						}
 
-						// Check if batch mode is enabled
-						const handlerOptions = handler.options as BatchHandlerOptions;
-						if (handlerOptions.batch) {
-							// Collect for batch processing
-							if (!batchCollector.has(handler.id)) {
-								batchCollector.set(handler.id, new Map());
-							}
-							const handlerBatches = batchCollector.get(handler.id);
-							if (handlerBatches) {
-								const batchKey = this.getBatchKey(handler, record, parsedData);
-								if (!handlerBatches.has(batchKey)) {
-									handlerBatches.set(batchKey, []);
-								}
-								const batchRecord = this.buildBatchRecord(
-									handler,
-									record,
-									parsedData,
-									ctx,
-								);
-								const batchRecords = handlerBatches.get(batchKey);
-								if (batchRecords) {
-									batchRecords.push(batchRecord);
-								}
-							}
+						// Check if handler is deferred
+						if (handler.deferred && handler.deferOptions?.queue) {
+							// Enqueue to SQS instead of executing
+							await this.enqueueDeferred(handler, record);
 						} else {
-							// Immediate execution for non-batch handlers
-							await this.invokeHandler(handler, record, parsedData, ctx);
+							// Check if batch mode is enabled
+							const handlerOptions = handler.options as BatchHandlerOptions;
+							if (handlerOptions.batch) {
+								// Collect for batch processing
+								if (!batchCollector.has(handler.id)) {
+									batchCollector.set(handler.id, new Map());
+								}
+								const handlerBatches = batchCollector.get(handler.id);
+								if (handlerBatches) {
+									const batchKey = this.getBatchKey(handler, record, parsedData);
+									if (!handlerBatches.has(batchKey)) {
+										handlerBatches.set(batchKey, []);
+									}
+									const batchRecord = this.buildBatchRecord(
+										handler,
+										record,
+										parsedData,
+										ctx,
+									);
+									const batchRecords = handlerBatches.get(batchKey);
+									if (batchRecords) {
+										batchRecords.push(batchRecord);
+									}
+								}
+							} else {
+								// Immediate execution for non-batch handlers
+								await this.invokeHandler(handler, record, parsedData, ctx);
+							}
 						}
 					}
 				}
@@ -591,6 +708,57 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				batchItemFailures.push({ itemIdentifier: firstFailedSequenceNumber });
 			}
 			return { batchItemFailures };
+		}
+
+		return result;
+	}
+
+	/**
+	 * Process deferred records from an SQS event.
+	 * Executes only the specific deferred handler that enqueued each record.
+	 */
+	async processDeferred(sqsEvent: {
+		Records: Array<{ body: string }>;
+	}): Promise<ProcessingResult> {
+		const result: ProcessingResult = {
+			processed: 0,
+			succeeded: 0,
+			failed: 0,
+			errors: [],
+		};
+
+		for (const sqsRecord of sqsEvent.Records) {
+			result.processed++;
+			const recordId = `deferred_${result.processed}`;
+
+			try {
+				const message: DeferredRecordMessage = JSON.parse(sqsRecord.body);
+				const handler = this._handlers.find((h) => h.id === message.handlerId);
+
+				if (!handler) {
+					throw new Error(`Handler not found: ${message.handlerId}`);
+				}
+
+				const record = message.record as DynamoDBRecord;
+				const eventType = record.eventName as "INSERT" | "MODIFY" | "REMOVE";
+				const ctx = this.buildContext(record);
+				const matchingImage = this.getMatchingImage(record, eventType);
+
+				// Re-match to get parsed data if using a parser
+				const { parsedData } = this.matchHandler(handler, matchingImage);
+
+				// Execute the handler
+				await this.invokeHandler(handler, record, parsedData, ctx);
+
+				result.succeeded++;
+			} catch (error) {
+				result.failed++;
+				result.errors.push({
+					recordId,
+					error: error instanceof Error ? error : new Error(String(error)),
+					phase: "handler",
+				});
+			}
 		}
 
 		return result;

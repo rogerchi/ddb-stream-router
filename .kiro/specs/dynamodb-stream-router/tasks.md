@@ -195,39 +195,39 @@
     - **Property 26: Batch item failures returns empty array on success**
     - **Validates: Requirements 15.4**
 
-- [ ] 13. Implement declarative defer functionality
-  - [ ] 13.1 Create HandlerRegistration class for chaining
+- [x] 13. Implement declarative defer functionality
+  - [x] 13.1 Create HandlerRegistration class for chaining
     - Return HandlerRegistration from insert/modify/remove methods
     - Implement defer(options?: DeferOptions) method that marks handler as deferred
     - Implement proxy methods to continue chaining (insert, modify, remove, use)
     - Throw ConfigurationError if defer() called without queue configured
     - _Requirements: 16.2, 16.8_
-  - [ ] 13.2 Add defer queue configuration to router
+  - [x] 13.2 Add defer queue configuration to router
     - Add deferQueue option to StreamRouterOptions
     - Add DeferOptions interface with queue and delaySeconds
     - _Requirements: 16.1, 16.3, 16.9_
-  - [ ] 13.3 Implement deferred handler behavior in process()
+  - [x] 13.3 Implement deferred handler behavior in process()
     - Check if handler is marked as deferred during processing
     - Enqueue record to SQS instead of executing handler
     - Include handler ID in SQS message for targeted execution
     - _Requirements: 16.4, 16.6_
-  - [ ] 13.4 Implement processDeferred() method
+  - [x] 13.4 Implement processDeferred() method
     - Parse SQS event and extract DynamoDB stream records with handler IDs
     - Execute only the specific deferred handler that enqueued the record
     - _Requirements: 16.5, 16.7_
-  - [ ] 13.5 Write property test for deferred handlers enqueue during process()
+  - [x] 13.5 Write property test for deferred handlers enqueue during process()
     - **Property 27: Deferred handlers enqueue during process()**
     - **Validates: Requirements 16.4, 16.6**
-  - [ ] 13.6 Write property test for deferred handlers execute during processDeferred()
+  - [x] 13.6 Write property test for deferred handlers execute during processDeferred()
     - **Property 28: Deferred handlers execute during processDeferred()**
     - **Validates: Requirements 16.5, 16.7**
-  - [ ] 13.7 Write property test for defer queue option override
+  - [x] 13.7 Write property test for defer queue option override
     - **Property 29: Defer queue option overrides router-level**
     - **Validates: Requirements 16.3**
-  - [ ] 13.8 Write property test for defer without queue error
+  - [x] 13.8 Write property test for defer without queue error
     - **Property 30: Defer without queue throws ConfigurationError**
     - **Validates: Requirements 16.8**
-  - [ ] 13.9 Write property test for deferred record includes handler ID
+  - [x] 13.9 Write property test for deferred record includes handler ID
     - **Property 31: Deferred record includes handler ID**
     - **Validates: Requirements 16.6, 16.7**
 

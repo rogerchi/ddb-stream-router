@@ -7,11 +7,34 @@ export type StreamViewType =
 	| "OLD_IMAGE"
 	| "NEW_AND_OLD_IMAGES";
 
+// SQS client interface for deferred processing
+export interface SQSClient {
+	sendMessage(params: {
+		QueueUrl: string;
+		MessageBody: string;
+		DelaySeconds?: number;
+	}): Promise<unknown>;
+}
+
 // Router configuration options
 export interface StreamRouterOptions {
 	streamViewType?: StreamViewType;
 	unmarshall?: boolean; // Whether to unmarshall DynamoDB JSON to native JS (default: true)
 	sameRegionOnly?: boolean; // Only process records from the same region as the Lambda (default: false)
+	deferQueue?: string; // Default SQS queue URL for deferred processing
+	sqsClient?: SQSClient; // SQS client for deferred processing
+}
+
+// Defer options for .defer() chain method
+export interface DeferOptions {
+	queue?: string; // SQS queue URL (overrides router-level deferQueue)
+	delaySeconds?: number; // SQS message delay (0-900 seconds)
+}
+
+// Deferred record message format for SQS
+export interface DeferredRecordMessage {
+	handlerId: string;
+	record: unknown; // The raw DynamoDB stream record
 }
 
 // Attribute change types for MODIFY filtering
@@ -94,6 +117,8 @@ export interface RegisteredHandler<T = unknown> {
 	handler: HandlerFunction;
 	options: HandlerOptions | ModifyHandlerOptions | BatchHandlerOptions;
 	isParser: boolean;
+	deferred?: boolean; // Whether this handler is deferred to SQS
+	deferOptions?: DeferOptions; // Defer configuration for this handler
 }
 
 // Attribute diff result
