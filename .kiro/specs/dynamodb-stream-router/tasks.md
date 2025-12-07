@@ -234,14 +234,14 @@
 - [x] 14. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Create public API exports
-  - [ ] 15.1 Export all public types and classes
+- [x] 15. Create public API exports
+  - [x] 15.1 Export all public types and classes
     - Export StreamRouter class
     - Export all type definitions (StreamViewType, Matcher, Handler types, etc.)
     - Export error classes (ConfigurationError)
     - Create clean index.ts barrel file
     - _Requirements: 8.1, 8.2, 8.3_
-  - [ ] 15.2 Create and export unmarshallMiddleware utility
+  - [x] 15.2 Create and export unmarshallMiddleware utility
     - Implement unmarshallMiddleware() function that returns a MiddlewareFunction
     - Middleware should unmarshall NewImage, OldImage, and Keys
     - Export from main index.ts
