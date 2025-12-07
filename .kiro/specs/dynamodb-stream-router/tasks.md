@@ -60,70 +60,70 @@
     - **Property 9: Middleware errors stop processing and propagate**
     - **Validates: Requirements 5.4**
 
-- [ ] 5. Checkpoint - Ensure all tests pass
+- [x] 5. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement event processing core
-  - [ ] 6.1 Implement process() method with unmarshalling
+- [x] 6. Implement event processing core
+  - [x] 6.1 Implement process() method with unmarshalling
     - Iterate through all records in DynamoDB Stream event
     - Unmarshall oldImage/newImage/keys using @aws-sdk/util-dynamodb when unmarshall option is true
     - Execute middleware chain for each record
     - Match records to handlers by event type (INSERT/MODIFY/REMOVE)
     - Build and return ProcessingResult with counts and errors
     - _Requirements: 7.1, 7.2, 7.4, 7.5, 11.1, 11.2, 11.3, 11.4_
-  - [ ] 6.2 Implement discriminator matching logic
+  - [x] 6.2 Implement discriminator matching logic
     - Call discriminator function with record image data (unmarshalled or raw based on option)
     - Invoke handler if discriminator returns true
     - Pass appropriate image data based on stream view type
     - _Requirements: 2.3, 3.3, 4.3, 6.1, 6.2, 6.3, 6.4_
-  - [ ] 6.3 Implement parser matching logic
+  - [x] 6.3 Implement parser matching logic
     - Call parser.safeParse() with record image data
     - Invoke handler with parsed data if validation succeeds
     - Skip handler silently if validation fails
     - _Requirements: 2.4, 2.5, 3.4, 3.5, 4.4, 4.5_
-  - [ ] 6.4 Write property test for discriminator-matched handlers
+  - [x] 6.4 Write property test for discriminator-matched handlers
     - **Property 4: Discriminator-matched handlers are invoked with correct data**
     - **Validates: Requirements 2.3, 3.3, 4.3**
-  - [ ] 6.5 Write property test for parser-validated handlers
+  - [x] 6.5 Write property test for parser-validated handlers
     - **Property 5: Parser-validated handlers receive parsed data**
     - **Validates: Requirements 2.2, 2.4, 3.2, 3.4, 4.2, 4.4**
-  - [ ] 6.6 Write property test for parser validation failures
+  - [x] 6.6 Write property test for parser validation failures
     - **Property 6: Parser validation failures skip handler without error**
     - **Validates: Requirements 2.5, 3.5, 4.5**
-  - [ ] 6.7 Write property test for stream view type data handling
+  - [x] 6.7 Write property test for stream view type data handling
     - **Property 10: Stream view type determines available image data**
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
-  - [ ] 6.8 Write property test for all records processing
+  - [x] 6.8 Write property test for all records processing
     - **Property 11: All records in event are processed**
     - **Validates: Requirements 7.1**
-  - [ ] 6.9 Write property test for multiple matching handlers
+  - [x] 6.9 Write property test for multiple matching handlers
     - **Property 12: Multiple matching handlers all execute in order**
     - **Validates: Requirements 7.3**
-  - [ ] 6.10 Write property test for non-matching records
+  - [x] 6.10 Write property test for non-matching records
     - **Property 13: Non-matching records are skipped without error**
     - **Validates: Requirements 7.4**
-  - [ ] 6.11 Write property test for processing result accuracy
+  - [x] 6.11 Write property test for processing result accuracy
     - **Property 14: Processing result accurately reflects execution**
     - **Validates: Requirements 7.5**
-  - [ ] 6.12 Write property test for unmarshalling enabled
+  - [x] 6.12 Write property test for unmarshalling enabled
     - **Property 20: Unmarshalling converts DynamoDB JSON to native objects**
     - **Validates: Requirements 11.1, 11.2, 11.4**
-  - [ ] 6.13 Write property test for unmarshalling disabled
+  - [x] 6.13 Write property test for unmarshalling disabled
     - **Property 21: Unmarshalling disabled passes raw format**
     - **Validates: Requirements 11.3**
-  - [ ] 6.14 Implement sameRegionOnly filtering
+  - [x] 6.14 Implement sameRegionOnly filtering
     - Check sameRegionOnly option during record processing
     - Extract region from eventSourceARN and compare to AWS_REGION
     - Skip records from different regions when enabled
     - Implement fail-open behavior when AWS_REGION is not set
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
-  - [ ] 6.15 Write property test for same region filtering
+  - [x] 6.15 Write property test for same region filtering
     - **Property 22: Same region filtering skips cross-region records**
     - **Validates: Requirements 13.1**
-  - [ ] 6.16 Write property test for same region processing
+  - [x] 6.16 Write property test for same region processing
     - **Property 23: Same region filtering processes matching region records**
     - **Validates: Requirements 13.3**
-  - [ ] 6.17 Write property test for same region default disabled
+  - [x] 6.17 Write property test for same region default disabled
     - **Property 24: Same region filtering defaults to disabled**
     - **Validates: Requirements 13.2**
 
