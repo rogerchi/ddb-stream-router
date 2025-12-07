@@ -1046,5 +1046,65 @@ describe("Deferred Processing with SQS", () => {
 			expect(result.succeeded).toBe(1);
 			expect(sqsHandler).toHaveBeenCalledTimes(1);
 		});
+
+		test("processDeferred only invokes the handler with matching ID, not other matching handlers", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			// Create two handlers that would BOTH match the same record
+			const targetHandler = jest.fn();
+			const otherHandler = jest.fn();
+
+			// Both discriminators match records with pk starting with "user#"
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("user#");
+
+			// This also matches the same record (has a name field)
+			const hasName = (record: unknown): record is { name: string } =>
+				typeof record === "object" && record !== null && "name" in record;
+
+			// Register both handlers as deferred with different IDs
+			router.onInsert(isUser, targetHandler).defer("target-handler");
+			router.onInsert(hasName, otherHandler).defer("other-handler");
+
+			// Create a record that matches BOTH discriminators
+			const originalRecord = createStreamRecord(
+				"INSERT",
+				{ pk: "user#1", sk: "profile" },
+				{ pk: "user#1", sk: "profile", name: "Test User" },
+			);
+
+			// Create SQS event with ONLY the target handler's ID
+			// This simulates what happens when the stream handler enqueues for a specific handler
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify({
+							handlerId: "target-handler",
+							record: originalRecord,
+						}),
+					},
+				],
+			};
+
+			const result = await router.processDeferred(sqsEvent);
+
+			expect(result.processed).toBe(1);
+			expect(result.succeeded).toBe(1);
+
+			// ONLY the target handler should be called
+			expect(targetHandler).toHaveBeenCalledTimes(1);
+
+			// The other handler should NOT be called, even though it would match the record
+			expect(otherHandler).not.toHaveBeenCalled();
+		});
 	});
 });
