@@ -25,23 +25,10 @@ export function getNestedValue(
 }
 
 /**
- * Checks if a value is a collection type (List, Map, or Set-like array).
+ * Checks if a value is a JavaScript Set (DynamoDB SS, NS, BS become Set after unmarshalling).
  */
-function isCollection(value: unknown): boolean {
-	return (
-		Array.isArray(value) ||
-		(typeof value === "object" && value !== null && !isSet(value))
-	);
-}
-
-/**
- * Checks if a value represents a DynamoDB Set (SS, NS, BS become arrays after unmarshalling).
- * Since unmarshalled sets are just arrays, we treat arrays as potential collections.
- */
-function isSet(_value: unknown): boolean {
-	// After unmarshalling, DynamoDB Sets become regular arrays
-	// We can't distinguish them from Lists, so we treat both as collections
-	return false;
+function isSet(value: unknown): value is Set<unknown> {
+	return value instanceof Set;
 }
 
 /**
@@ -53,11 +40,21 @@ function isMap(value: unknown): boolean {
 
 /**
  * Deep equality check for comparing attribute values.
+ * Handles primitives, arrays, objects, and Sets.
  */
 function deepEqual(a: unknown, b: unknown): boolean {
 	if (a === b) return true;
 	if (a === null || b === null) return a === b;
 	if (typeof a !== typeof b) return false;
+
+	// Handle Sets (DynamoDB SS, NS, BS)
+	if (isSet(a) && isSet(b)) {
+		if (a.size !== b.size) return false;
+		// Compare by converting to sorted JSON strings
+		const aItems = [...a].map((v) => JSON.stringify(v)).sort();
+		const bItems = [...b].map((v) => JSON.stringify(v)).sort();
+		return aItems.every((item, index) => item === bItems[index]);
+	}
 
 	if (Array.isArray(a) && Array.isArray(b)) {
 		if (a.length !== b.length) return false;
@@ -80,13 +77,48 @@ function deepEqual(a: unknown, b: unknown): boolean {
 /**
  * Detects collection-level changes between old and new values.
  * Returns the specific type of collection change if detected.
+ *
+ * Handles:
+ * - Arrays (DynamoDB Lists)
+ * - Sets (DynamoDB String Sets, Number Sets, Binary Sets)
  */
 function detectCollectionChange(
 	oldValue: unknown,
 	newValue: unknown,
 ): AttributeChangeType | null {
-	// Both must be collections for collection-level change detection
-	if (!isCollection(oldValue) && !isCollection(newValue)) {
+	// Handle Set changes (DynamoDB SS, NS, BS)
+	if (isSet(oldValue) && isSet(newValue)) {
+		const oldSet = oldValue as Set<unknown>;
+		const newSet = newValue as Set<unknown>;
+
+		// Convert to comparable strings for complex values
+		const oldItems = new Set([...oldSet].map((v) => JSON.stringify(v)));
+		const newItems = new Set([...newSet].map((v) => JSON.stringify(v)));
+
+		let hasNewItems = false;
+		let hasRemovedItems = false;
+
+		// Check for new items
+		for (const item of newItems) {
+			if (!oldItems.has(item)) {
+				hasNewItems = true;
+				break;
+			}
+		}
+
+		// Check for removed items
+		for (const item of oldItems) {
+			if (!newItems.has(item)) {
+				hasRemovedItems = true;
+				break;
+			}
+		}
+
+		// Sets don't have "changed" items - items are either present or not
+		if (hasNewItems && !hasRemovedItems) return "new_item_in_collection";
+		if (hasRemovedItems && !hasNewItems) return "remove_item_from_collection";
+		if (hasNewItems && hasRemovedItems) return "changed_item_in_collection";
+
 		return null;
 	}
 
@@ -154,32 +186,6 @@ function detectCollectionChange(
 		return null;
 	}
 
-	// Handle map/object changes
-	if (isMap(oldValue) && isMap(newValue)) {
-		const oldObj = oldValue as Record<string, unknown>;
-		const newObj = newValue as Record<string, unknown>;
-		const oldKeys = new Set(Object.keys(oldObj));
-		const newKeys = new Set(Object.keys(newObj));
-
-		const addedKeys = [...newKeys].filter((k) => !oldKeys.has(k));
-		const removedKeys = [...oldKeys].filter((k) => !newKeys.has(k));
-		const commonKeys = [...oldKeys].filter((k) => newKeys.has(k));
-
-		const hasChangedItems = commonKeys.some(
-			(key) => !deepEqual(oldObj[key], newObj[key]),
-		);
-
-		if (hasChangedItems) return "changed_item_in_collection";
-		if (addedKeys.length > 0 && removedKeys.length === 0)
-			return "new_item_in_collection";
-		if (removedKeys.length > 0 && addedKeys.length === 0)
-			return "remove_item_from_collection";
-		if (addedKeys.length > 0 && removedKeys.length > 0)
-			return "changed_item_in_collection";
-
-		return null;
-	}
-
 	return null;
 }
 
@@ -234,8 +240,22 @@ function diffAttributesRecursive(
 				continue; // No change
 			}
 
-			// Check for collection-level changes first (arrays)
+			// Check for collection-level changes first (arrays and Sets)
 			if (Array.isArray(oldValue) && Array.isArray(newValue)) {
+				const collectionChange = detectCollectionChange(oldValue, newValue);
+				if (collectionChange) {
+					changes.push({
+						attribute: path,
+						changeType: collectionChange,
+						oldValue,
+						newValue,
+					});
+				}
+				continue;
+			}
+
+			// Handle DynamoDB Sets (SS, NS, BS become JavaScript Set after unmarshalling)
+			if (isSet(oldValue) && isSet(newValue)) {
 				const collectionChange = detectCollectionChange(oldValue, newValue);
 				if (collectionChange) {
 					changes.push({
