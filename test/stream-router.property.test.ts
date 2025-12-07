@@ -1017,7 +1017,15 @@ describe("Multiple Attribute Filter Properties", () => {
 
 	test("Property 17: Handler invoked when any filter condition matches", async () => {
 		// Filter out special JavaScript property names that cause issues
-		const reservedNames = ["id", "pk", "__proto__", "constructor", "prototype", "hasOwnProperty", "toString"];
+		const reservedNames = [
+			"id",
+			"pk",
+			"__proto__",
+			"constructor",
+			"prototype",
+			"hasOwnProperty",
+			"toString",
+		];
 		await fc.assert(
 			fc.asyncProperty(
 				fc
@@ -1119,34 +1127,31 @@ describe("Batch Processing Properties", () => {
 	 */
 	test("Property 18: Batch mode collects all matching records", async () => {
 		await fc.assert(
-			fc.asyncProperty(
-				fc.integer({ min: 1, max: 10 }),
-				async (recordCount) => {
-					const router = new StreamRouter();
-					const handler = jest.fn();
-					const discriminator = (record: unknown): record is { id: string } =>
-						typeof record === "object" && record !== null && "id" in record;
+			fc.asyncProperty(fc.integer({ min: 1, max: 10 }), async (recordCount) => {
+				const router = new StreamRouter();
+				const handler = jest.fn();
+				const discriminator = (record: unknown): record is { id: string } =>
+					typeof record === "object" && record !== null && "id" in record;
 
-					router.insert(discriminator, handler, { batch: true });
+				router.insert(discriminator, handler, { batch: true });
 
-					const records = Array.from({ length: recordCount }, (_, i) =>
-						createMockRecord("INSERT", { id: `item_${i}` }),
-					);
-					const event = createMockEvent(records);
+				const records = Array.from({ length: recordCount }, (_, i) =>
+					createMockRecord("INSERT", { id: `item_${i}` }),
+				);
+				const event = createMockEvent(records);
 
-					await router.process(event);
+				await router.process(event);
 
-					// Handler should be called exactly once
-					expect(handler).toHaveBeenCalledTimes(1);
+				// Handler should be called exactly once
+				expect(handler).toHaveBeenCalledTimes(1);
 
-					// Handler should receive an array with all matching records
-					const calledWith = handler.mock.calls[0][0];
-					expect(Array.isArray(calledWith)).toBe(true);
-					expect(calledWith).toHaveLength(recordCount);
+				// Handler should receive an array with all matching records
+				const calledWith = handler.mock.calls[0][0];
+				expect(Array.isArray(calledWith)).toBe(true);
+				expect(calledWith).toHaveLength(recordCount);
 
-					return true;
-				},
-			),
+				return true;
+			}),
 			{ numRuns: 100 },
 		);
 	});
@@ -1214,7 +1219,9 @@ describe("Batch Processing Properties", () => {
 					const discriminator = (
 						record: unknown,
 					): record is { groupId: string; id: string } =>
-						typeof record === "object" && record !== null && "groupId" in record;
+						typeof record === "object" &&
+						record !== null &&
+						"groupId" in record;
 
 					router.insert(discriminator, handler, {
 						batch: true,
@@ -1320,8 +1327,16 @@ describe("Batch Processing Properties", () => {
 		router.modify(discriminator, handler, { batch: true });
 
 		const records = [
-			createMockRecord("MODIFY", { id: "1", value: "new1" }, { id: "1", value: "old1" }),
-			createMockRecord("MODIFY", { id: "2", value: "new2" }, { id: "2", value: "old2" }),
+			createMockRecord(
+				"MODIFY",
+				{ id: "1", value: "new1" },
+				{ id: "1", value: "old1" },
+			),
+			createMockRecord(
+				"MODIFY",
+				{ id: "2", value: "new2" },
+				{ id: "2", value: "old2" },
+			),
 		];
 		const event = createMockEvent(records);
 
@@ -1370,9 +1385,15 @@ describe("Batch Processing Properties", () => {
 		});
 
 		// Batch handler
-		router.insert(discriminator, (records: unknown) => {
-			executionOrder.push(`batch_${(records as Array<{ newImage: { id: string } }>).length}`);
-		}, { batch: true });
+		router.insert(
+			discriminator,
+			(records: unknown) => {
+				executionOrder.push(
+					`batch_${(records as Array<{ newImage: { id: string } }>).length}`,
+				);
+			},
+			{ batch: true },
+		);
 
 		const records = [
 			createMockRecord("INSERT", { id: "1" }),
@@ -1384,11 +1405,7 @@ describe("Batch Processing Properties", () => {
 
 		// Immediate handlers execute during record processing
 		// Batch handlers execute after all records are processed
-		expect(executionOrder).toEqual([
-			"immediate_1",
-			"immediate_2",
-			"batch_2",
-		]);
+		expect(executionOrder).toEqual(["immediate_1", "immediate_2", "batch_2"]);
 	});
 });
 
@@ -1458,7 +1475,9 @@ describe("Batch Item Failures Properties", () => {
 					});
 
 					const records = Array.from({ length: totalRecords }, (_, i) =>
-						createMockRecordWithSequence("INSERT", `seq_${i}`, { id: `item_${i}` }),
+						createMockRecordWithSequence("INSERT", `seq_${i}`, {
+							id: `item_${i}`,
+						}),
 					);
 					const event = createMockEvent(records);
 
@@ -1468,7 +1487,9 @@ describe("Batch Item Failures Properties", () => {
 
 					// Should return BatchItemFailuresResponse
 					expect(result).toHaveProperty("batchItemFailures");
-					const batchResult = result as { batchItemFailures: Array<{ itemIdentifier: string }> };
+					const batchResult = result as {
+						batchItemFailures: Array<{ itemIdentifier: string }>;
+					};
 
 					// Should contain exactly one failure - the first failed record
 					expect(batchResult.batchItemFailures).toHaveLength(1);
@@ -1506,10 +1527,14 @@ describe("Batch Item Failures Properties", () => {
 		];
 		const event = createMockEvent(records);
 
-		const result = await router.process(event, { reportBatchItemFailures: true });
+		const result = await router.process(event, {
+			reportBatchItemFailures: true,
+		});
 
 		expect(result).toHaveProperty("batchItemFailures");
-		const batchResult = result as { batchItemFailures: Array<{ itemIdentifier: string }> };
+		const batchResult = result as {
+			batchItemFailures: Array<{ itemIdentifier: string }>;
+		};
 
 		// Should only contain the first failure (seq_1)
 		expect(batchResult.batchItemFailures).toHaveLength(1);
@@ -1535,7 +1560,9 @@ describe("Batch Item Failures Properties", () => {
 				});
 
 				const records = Array.from({ length: recordCount }, (_, i) =>
-					createMockRecordWithSequence("INSERT", `seq_${i}`, { id: `item_${i}` }),
+					createMockRecordWithSequence("INSERT", `seq_${i}`, {
+						id: `item_${i}`,
+					}),
 				);
 				const event = createMockEvent(records);
 
@@ -1545,7 +1572,9 @@ describe("Batch Item Failures Properties", () => {
 
 				// Should return BatchItemFailuresResponse with empty array
 				expect(result).toHaveProperty("batchItemFailures");
-				const batchResult = result as { batchItemFailures: Array<{ itemIdentifier: string }> };
+				const batchResult = result as {
+					batchItemFailures: Array<{ itemIdentifier: string }>;
+				};
 				expect(batchResult.batchItemFailures).toHaveLength(0);
 
 				return true;
@@ -1587,14 +1616,16 @@ describe("Defer Functionality Properties", () => {
 			DelaySeconds?: number;
 		}> = [];
 		return {
-			sendMessage: jest.fn(async (params: {
-				QueueUrl: string;
-				MessageBody: string;
-				DelaySeconds?: number;
-			}) => {
-				sentMessages.push(params);
-				return {};
-			}),
+			sendMessage: jest.fn(
+				async (params: {
+					QueueUrl: string;
+					MessageBody: string;
+					DelaySeconds?: number;
+				}) => {
+					sentMessages.push(params);
+					return {};
+				},
+			),
 			sentMessages,
 		};
 	};
