@@ -12,6 +12,7 @@ import {
 	SQSClient,
 	ReceiveMessageCommand,
 	DeleteMessageCommand,
+	PurgeQueueCommand,
 } from "@aws-sdk/client-sqs";
 
 // Configuration interface
@@ -38,7 +39,11 @@ interface VerificationMessage {
 
 // Load CDK outputs
 function loadConfig(): CdkOutputs {
-	const outputsPath = path.join(__dirname, "..", ".cdk.outputs.integration.json");
+	const outputsPath = path.join(
+		__dirname,
+		"..",
+		".cdk.outputs.integration.json",
+	);
 	if (!fs.existsSync(outputsPath)) {
 		throw new Error(
 			`CDK outputs file not found at ${outputsPath}. Run 'npm run integ:deploy' first.`,
@@ -48,29 +53,51 @@ function loadConfig(): CdkOutputs {
 	return JSON.parse(content) as CdkOutputs;
 }
 
-// Poll verification queue for messages
-async function pollVerificationQueue(
+// Purge verification queue before tests
+async function purgeQueue(
+	sqsClient: SQSClient,
+	queueUrl: string,
+): Promise<void> {
+	console.log("  Purging verification queue...");
+	try {
+		await sqsClient.send(new PurgeQueueCommand({ QueueUrl: queueUrl }));
+		// Wait for purge to take effect (AWS recommends 60s, but we'll use less for testing)
+		await new Promise((resolve) => setTimeout(resolve, 5000));
+	} catch (error) {
+		// PurgeQueue can fail if called too recently, ignore
+		console.log("  (Queue purge skipped - may have been purged recently)");
+	}
+}
+
+// Drain all messages from verification queue
+async function drainVerificationQueue(
 	sqsClient: SQSClient,
 	queueUrl: string,
 	expectedCount: number,
-	timeoutMs = 60000,
+	timeoutMs = 90000,
 ): Promise<VerificationMessage[]> {
 	const messages: VerificationMessage[] = [];
 	const startTime = Date.now();
-	const pollInterval = 2000;
+	let emptyPollCount = 0;
+	const maxEmptyPolls = 3; // Stop after 3 consecutive empty polls
 
-	console.log(`  Polling for ${expectedCount} messages (timeout: ${timeoutMs / 1000}s)...`);
+	console.log(
+		`  Draining queue for ${expectedCount} messages (timeout: ${timeoutMs / 1000}s)...`,
+	);
 
-	while (messages.length < expectedCount && Date.now() - startTime < timeoutMs) {
+	while (Date.now() - startTime < timeoutMs) {
 		const response = await sqsClient.send(
 			new ReceiveMessageCommand({
 				QueueUrl: queueUrl,
 				MaxNumberOfMessages: 10,
-				WaitTimeSeconds: 5,
+				WaitTimeSeconds: 10,
+				VisibilityTimeout: 30,
 			}),
 		);
 
-		if (response.Messages) {
+		if (response.Messages && response.Messages.length > 0) {
+			emptyPollCount = 0; // Reset empty poll counter
+
 			for (const msg of response.Messages) {
 				if (msg.Body && msg.ReceiptHandle) {
 					const parsed = JSON.parse(msg.Body) as VerificationMessage;
@@ -88,10 +115,22 @@ async function pollVerificationQueue(
 					);
 				}
 			}
+		} else {
+			emptyPollCount++;
+			console.log(
+				`  Empty poll ${emptyPollCount}/${maxEmptyPolls} (collected ${messages.length}/${expectedCount})`,
+			);
+
+			// If we have enough messages and got empty polls, we're done
+			if (messages.length >= expectedCount && emptyPollCount >= maxEmptyPolls) {
+				break;
+			}
 		}
 
-		if (messages.length < expectedCount) {
-			await new Promise((resolve) => setTimeout(resolve, pollInterval));
+		// Early exit if we have all expected messages
+		if (messages.length >= expectedCount) {
+			// Do one more poll to make sure we got everything
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 		}
 	}
 
@@ -118,15 +157,16 @@ async function runTests(): Promise<void> {
 	const testPk = `TEST#${Date.now()}`;
 	const testSk = "v0";
 
-	let totalTests = 0;
-	let passedTests = 0;
-
 	try {
-		// Test 1: INSERT operation
-		console.log("\n📝 Test 1: INSERT operation");
-		console.log("-".repeat(50));
-		console.log(`  Creating item: pk=${testPk}, sk=${testSk}`);
+		// Purge queue before starting
+		await purgeQueue(sqsClient, VerificationQueueUrl);
 
+		// Perform all DynamoDB operations first
+		console.log("\n📝 Performing DynamoDB operations...");
+		console.log("-".repeat(50));
+
+		// Operation 1: INSERT
+		console.log(`  1. INSERT: pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new PutItemCommand({
 				TableName,
@@ -138,45 +178,11 @@ async function runTests(): Promise<void> {
 			}),
 		);
 
-		// Wait for stream processing + deferred processing
-		const insertMessages = await pollVerificationQueue(
-			sqsClient,
-			VerificationQueueUrl,
-			2, // Expect immediate INSERT + deferred INSERT
-			60000,
-		);
+		// Small delay between operations to ensure ordering
+		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		totalTests++;
-		try {
-			assert.strictEqual(
-				insertMessages.length,
-				2,
-				`Expected 2 INSERT messages, got ${insertMessages.length}`,
-			);
-
-			const immediateInsert = insertMessages.find(
-				(m) => m.operationType === "INSERT" && !m.isDeferred,
-			);
-			const deferredInsert = insertMessages.find(
-				(m) => m.operationType === "INSERT" && m.isDeferred,
-			);
-
-			assert.ok(immediateInsert, "Missing immediate INSERT message");
-			assert.ok(deferredInsert, "Missing deferred INSERT message");
-			assert.strictEqual(immediateInsert.pk, testPk);
-			assert.strictEqual(deferredInsert.pk, testPk);
-
-			console.log("  ✅ INSERT test passed");
-			passedTests++;
-		} catch (error) {
-			console.log(`  ❌ INSERT test failed: ${(error as Error).message}`);
-		}
-
-		// Test 2: MODIFY operation
-		console.log("\n📝 Test 2: MODIFY operation");
-		console.log("-".repeat(50));
-		console.log(`  Updating item: pk=${testPk}, sk=${testSk}`);
-
+		// Operation 2: MODIFY
+		console.log(`  2. MODIFY: pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new UpdateItemCommand({
 				TableName,
@@ -190,37 +196,10 @@ async function runTests(): Promise<void> {
 			}),
 		);
 
-		const modifyMessages = await pollVerificationQueue(
-			sqsClient,
-			VerificationQueueUrl,
-			1, // Expect immediate MODIFY only
-			30000,
-		);
+		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		totalTests++;
-		try {
-			assert.strictEqual(
-				modifyMessages.length,
-				1,
-				`Expected 1 MODIFY message, got ${modifyMessages.length}`,
-			);
-
-			const modifyMsg = modifyMessages[0];
-			assert.strictEqual(modifyMsg.operationType, "MODIFY");
-			assert.strictEqual(modifyMsg.isDeferred, false);
-			assert.strictEqual(modifyMsg.pk, testPk);
-
-			console.log("  ✅ MODIFY test passed");
-			passedTests++;
-		} catch (error) {
-			console.log(`  ❌ MODIFY test failed: ${(error as Error).message}`);
-		}
-
-		// Test 3: REMOVE operation
-		console.log("\n📝 Test 3: REMOVE operation");
-		console.log("-".repeat(50));
-		console.log(`  Deleting item: pk=${testPk}, sk=${testSk}`);
-
+		// Operation 3: REMOVE
+		console.log(`  3. REMOVE: pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new DeleteItemCommand({
 				TableName,
@@ -231,30 +210,127 @@ async function runTests(): Promise<void> {
 			}),
 		);
 
-		const removeMessages = await pollVerificationQueue(
+		// Wait for stream processing + deferred processing
+		console.log("\n⏳ Waiting for stream and deferred processing...");
+		console.log("-".repeat(50));
+
+		// Expected messages:
+		// - INSERT immediate + INSERT deferred = 2
+		// - MODIFY immediate = 1
+		// - REMOVE immediate = 1
+		// Total = 4
+		const expectedMessageCount = 4;
+
+		const allMessages = await drainVerificationQueue(
 			sqsClient,
 			VerificationQueueUrl,
-			1, // Expect immediate REMOVE only
-			30000,
+			expectedMessageCount,
+			90000, // 90 second timeout
 		);
 
+		// Analyze results
+		console.log("\n📊 Analyzing results...");
+		console.log("-".repeat(50));
+		console.log(`  Total messages received: ${allMessages.length}`);
+
+		// Filter messages for our test pk
+		const testMessages = allMessages.filter((m) => m.pk === testPk);
+		console.log(`  Messages for test pk: ${testMessages.length}`);
+
+		// Categorize messages
+		const insertImmediate = testMessages.filter(
+			(m) => m.operationType === "INSERT" && !m.isDeferred,
+		);
+		const insertDeferred = testMessages.filter(
+			(m) => m.operationType === "INSERT" && m.isDeferred,
+		);
+		const modifyImmediate = testMessages.filter(
+			(m) => m.operationType === "MODIFY" && !m.isDeferred,
+		);
+		const removeImmediate = testMessages.filter(
+			(m) => m.operationType === "REMOVE" && !m.isDeferred,
+		);
+
+		console.log(`  INSERT immediate: ${insertImmediate.length}`);
+		console.log(`  INSERT deferred: ${insertDeferred.length}`);
+		console.log(`  MODIFY immediate: ${modifyImmediate.length}`);
+		console.log(`  REMOVE immediate: ${removeImmediate.length}`);
+
+		// Run assertions
+		console.log("\n✅ Running assertions...");
+		console.log("-".repeat(50));
+
+		let totalTests = 0;
+		let passedTests = 0;
+
+		// Test 1: INSERT immediate
 		totalTests++;
 		try {
 			assert.strictEqual(
-				removeMessages.length,
+				insertImmediate.length,
 				1,
-				`Expected 1 REMOVE message, got ${removeMessages.length}`,
+				`Expected 1 immediate INSERT, got ${insertImmediate.length}`,
 			);
-
-			const removeMsg = removeMessages[0];
-			assert.strictEqual(removeMsg.operationType, "REMOVE");
-			assert.strictEqual(removeMsg.isDeferred, false);
-			assert.strictEqual(removeMsg.pk, testPk);
-
-			console.log("  ✅ REMOVE test passed");
+			console.log("  ✅ INSERT immediate: PASSED");
 			passedTests++;
 		} catch (error) {
-			console.log(`  ❌ REMOVE test failed: ${(error as Error).message}`);
+			console.log(`  ❌ INSERT immediate: FAILED - ${(error as Error).message}`);
+		}
+
+		// Test 2: INSERT deferred
+		totalTests++;
+		try {
+			assert.strictEqual(
+				insertDeferred.length,
+				1,
+				`Expected 1 deferred INSERT, got ${insertDeferred.length}`,
+			);
+			console.log("  ✅ INSERT deferred: PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(`  ❌ INSERT deferred: FAILED - ${(error as Error).message}`);
+		}
+
+		// Test 3: MODIFY immediate
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyImmediate.length,
+				1,
+				`Expected 1 immediate MODIFY, got ${modifyImmediate.length}`,
+			);
+			console.log("  ✅ MODIFY immediate: PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(`  ❌ MODIFY immediate: FAILED - ${(error as Error).message}`);
+		}
+
+		// Test 4: REMOVE immediate
+		totalTests++;
+		try {
+			assert.strictEqual(
+				removeImmediate.length,
+				1,
+				`Expected 1 immediate REMOVE, got ${removeImmediate.length}`,
+			);
+			console.log("  ✅ REMOVE immediate: PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(`  ❌ REMOVE immediate: FAILED - ${(error as Error).message}`);
+		}
+
+		// Test 5: Deferred INSERT has correct data
+		totalTests++;
+		try {
+			assert.ok(insertDeferred[0], "Missing deferred INSERT message");
+			assert.strictEqual(insertDeferred[0].pk, testPk);
+			assert.strictEqual(insertDeferred[0].sk, testSk);
+			console.log("  ✅ Deferred INSERT data: PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ Deferred INSERT data: FAILED - ${(error as Error).message}`,
+			);
 		}
 
 		// Summary
