@@ -8,7 +8,7 @@
  * Lambda invocation and passes them to the handler as an array.
  */
 import type { DynamoDBStreamEvent } from "aws-lambda";
-import { StreamRouter, type HandlerContext } from "../src";
+import { StreamRouter } from "../src";
 
 // Entity types
 interface InventoryChange {
@@ -41,16 +41,11 @@ const isAuditLog = (record: unknown): record is AuditLog =>
 
 const router = new StreamRouter();
 
-// Type for batch records
-type BatchRecord<T> = { newImage: T; ctx: HandlerContext };
-type BatchModifyRecord<T> = { oldImage: T; newImage: T; ctx: HandlerContext };
-
 // Batch all inventory changes together
 // Handler receives array of all matching records at once
-// Note: When using batch: true, cast the handler to work around type inference
-(router.insert as Function)(
+router.insert(
 	isInventoryChange,
-	async (records: BatchRecord<InventoryChange>[]) => {
+	async (records) => {
 		console.log(`Processing ${records.length} inventory changes in batch`);
 
 		// Aggregate changes by product
@@ -68,9 +63,9 @@ type BatchModifyRecord<T> = { oldImage: T; newImage: T; ctx: HandlerContext };
 
 // Batch audit logs by user ID
 // Records are grouped by the batchKey before handler is called
-(router.insert as Function)(
+router.insert(
 	isAuditLog,
-	async (records: BatchRecord<AuditLog>[]) => {
+	async (records) => {
 		const userId = records[0].newImage.userId;
 		console.log(`Processing ${records.length} audit logs for user ${userId}`);
 
@@ -84,15 +79,15 @@ type BatchModifyRecord<T> = { oldImage: T; newImage: T; ctx: HandlerContext };
 );
 
 // You can also use a function for complex batch keys
-(router.modify as Function)(
+router.modify(
 	isInventoryChange,
-	async (records: BatchModifyRecord<InventoryChange>[]) => {
+	async (records) => {
 		const warehouseId = records[0].newImage.warehouseId;
 		console.log(`Processing inventory updates for warehouse ${warehouseId}`);
 	},
 	{
 		batch: true,
-		batchKey: (record: unknown) => (record as InventoryChange).warehouseId,
+		batchKey: (record) => (record as InventoryChange).warehouseId,
 	},
 );
 
