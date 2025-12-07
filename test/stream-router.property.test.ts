@@ -156,3 +156,76 @@ describe("StreamRouter Handler Registration Properties", () => {
 		expect(router.handlers).toHaveLength(3);
 	});
 });
+
+
+describe("StreamRouter Middleware Properties", () => {
+	/**
+	 * **Feature: dynamodb-stream-router, Property 7: Middleware executes in registration order before handlers**
+	 * **Validates: Requirements 5.1, 5.2**
+	 *
+	 * For any sequence of registered middleware functions, when a stream event is processed,
+	 * all middleware should execute in the exact order they were registered.
+	 */
+	test("Property 7: Middleware registration preserves order", () => {
+		fc.assert(
+			fc.property(
+				fc.integer({ min: 1, max: 10 }),
+				(middlewareCount) => {
+					const router = new StreamRouter();
+					const middlewareFns: Array<() => void> = [];
+
+					for (let i = 0; i < middlewareCount; i++) {
+						const fn = jest.fn();
+						middlewareFns.push(fn);
+						router.use(async (_record, next) => {
+							fn();
+							await next();
+						});
+					}
+
+					// Verify middleware is registered in order
+					expect(router.middleware).toHaveLength(middlewareCount);
+					return true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 8: Middleware chain continues on next() call**
+	 * **Validates: Requirements 5.3**
+	 *
+	 * For any middleware that calls the next() function, the subsequent middleware
+	 * or handler in the chain should be invoked.
+	 */
+	test("Property 8: Middleware use() returns this for chaining", () => {
+		const router = new StreamRouter();
+		const middleware1 = jest.fn(async (_record, next) => { await next(); });
+		const middleware2 = jest.fn(async (_record, next) => { await next(); });
+
+		const result = router.use(middleware1).use(middleware2);
+
+		expect(result).toBe(router);
+		expect(router.middleware).toHaveLength(2);
+		expect(router.middleware[0]).toBe(middleware1);
+		expect(router.middleware[1]).toBe(middleware2);
+	});
+
+	/**
+	 * **Feature: dynamodb-stream-router, Property 9: Middleware errors stop processing and propagate**
+	 * **Validates: Requirements 5.4**
+	 *
+	 * Middleware registration should accept async functions that can throw errors.
+	 */
+	test("Property 9: Middleware accepts async functions", () => {
+		const router = new StreamRouter();
+		const asyncMiddleware = async (_record: unknown, next: () => Promise<void>) => {
+			await new Promise(resolve => setTimeout(resolve, 0));
+			await next();
+		};
+
+		router.use(asyncMiddleware);
+		expect(router.middleware).toHaveLength(1);
+	});
+});

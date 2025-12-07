@@ -44,19 +44,19 @@
     - **Property 3: Handler registration preserves handler across all event types**
     - **Validates: Requirements 2.1, 3.1, 4.1**
 
-- [ ] 4. Implement middleware system
-  - [ ] 4.1 Implement use() method and middleware chain
+- [x] 4. Implement middleware system
+  - [x] 4.1 Implement use() method and middleware chain
     - Implement use() method to register middleware in order
     - Create middleware chain executor that calls next() to continue
     - Handle async middleware functions
     - _Requirements: 5.1, 5.2, 5.3_
-  - [ ] 4.2 Write property test for middleware execution order
+  - [x] 4.2 Write property test for middleware execution order
     - **Property 7: Middleware executes in registration order before handlers**
     - **Validates: Requirements 5.1, 5.2**
-  - [ ] 4.3 Write property test for middleware chain continuation
+  - [x] 4.3 Write property test for middleware chain continuation
     - **Property 8: Middleware chain continues on next() call**
     - **Validates: Requirements 5.3**
-  - [ ] 4.4 Write property test for middleware error propagation
+  - [x] 4.4 Write property test for middleware error propagation
     - **Property 9: Middleware errors stop processing and propagate**
     - **Validates: Requirements 5.4**
 

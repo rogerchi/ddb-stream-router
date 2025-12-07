@@ -168,4 +168,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		this._handlers.push(registration as RegisteredHandler);
 		return this;
 	}
+
+	/**
+	 * Register middleware to be executed for each record before handlers.
+	 * Middleware is executed in the order it was registered.
+	 */
+	use(middleware: MiddlewareFunction): this {
+		this._middleware.push(middleware);
+		return this;
+	}
 }
