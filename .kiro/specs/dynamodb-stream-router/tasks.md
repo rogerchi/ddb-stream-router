@@ -247,8 +247,8 @@
     - Export from main index.ts
     - _Requirements: 11.5, 11.6_
 
-- [ ] 16. Integration tests with DynamoDB Local
-  - [ ] 16.1 Set up DynamoDB Local test infrastructure
+- [-] 16. Integration tests with DynamoDB Local
+  - [-] 16.1 Set up DynamoDB Local test infrastructure
     - Configure @shelf/jest-dynamodb or similar
     - Create test table with streams enabled
     - Set up test utilities for stream event capture
