@@ -4,7 +4,6 @@
  * This example shows how to set up a simple router with handlers
  * for INSERT, MODIFY, and REMOVE events.
  */
-import type { DynamoDBStreamHandler } from "aws-lambda";
 import { StreamRouter } from "../src";
 
 // Define your entity types
@@ -66,8 +65,5 @@ router
 		// Clean up related data, GDPR compliance, etc.
 	});
 
-// Lambda handler
-export const handler: DynamoDBStreamHandler = async (event) => {
-	const result = await router.process(event);
-	console.log(`Processed ${result.processed} records, ${result.failed} failures`);
-};
+// Lambda handler - simplified export with built-in batch failure support
+export const handler = router.streamHandler;
