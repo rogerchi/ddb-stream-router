@@ -1,6 +1,6 @@
 # ddb-stream-router
 
-A TypeScript library providing Express-like routing for DynamoDB Stream events. Register type-safe handlers for INSERT, MODIFY, and REMOVE operations using discriminator functions or schema validators like Zod. Defer heavy processing to SQS with a simple `.defer()` chain to keep your stream processing fast and reliable.
+A TypeScript library providing Express-like routing for DynamoDB Stream events. Register type-safe handlers for INSERT, MODIFY, and REMOVE operations using discriminator functions or schema validators like Zod. Defer heavy processing to SQS with a simple `.defer(handlerId)` chain to keep your stream processing fast and reliable.
 
 ## Features
 
@@ -267,6 +267,18 @@ export const streamHandler = router.streamHandler;
 // SQS handler - simplified export with built-in batch failure support
 export const sqsHandler = router.sqsHandler;
 ```
+
+**Why is the handler ID required?**
+
+The `id` parameter in `.defer(id)` serves several important purposes:
+
+1. **Handler matching**: When the SQS message is processed via `processDeferred()`, the ID identifies which specific handler should execute. This ensures only the intended handler runs, even if the original record matched multiple handlers.
+
+2. **Stable references**: The ID remains stable across Lambda deployments and code changes. Without a stable ID, handler registration order changes could route messages to the wrong handler.
+
+3. **Cross-function support**: The stream handler and SQS handler can be different Lambda functions. The ID ensures the SQS handler can locate the correct handler regardless of how handlers are registered in each function.
+
+4. **Uniqueness**: Each deferred handler must have a unique ID within the router. Duplicate IDs will throw a `ConfigurationError`.
 
 ## Global Tables (Region Filtering)
 
