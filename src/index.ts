@@ -28,6 +28,7 @@ export type {
 	HandlerFunction,
 	HandlerOptions,
 	InsertHandler,
+	Logger,
 	Matcher,
 	MiddlewareFunction,
 	ModifyHandler,

@@ -16,6 +16,11 @@ export interface SQSClient {
 	}): Promise<unknown>;
 }
 
+// Logger interface for trace logging
+export interface Logger {
+	debug(message: string, data?: Record<string, unknown>): void;
+}
+
 // Router configuration options
 export interface StreamRouterOptions {
 	streamViewType?: StreamViewType;
@@ -24,6 +29,7 @@ export interface StreamRouterOptions {
 	deferQueue?: string; // Default SQS queue URL for deferred processing
 	sqsClient?: SQSClient; // SQS client for deferred processing
 	reportBatchItemFailures?: boolean; // Return batchItemFailures format for streamHandler/sqsHandler (default: true)
+	logger?: Logger; // Optional logger for trace logging
 }
 
 // Defer options for .defer() chain method

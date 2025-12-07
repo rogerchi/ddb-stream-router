@@ -467,3 +467,88 @@ describe("Handler Getters", () => {
 		expect(typeof handler).toBe("function");
 	});
 });
+
+describe("Logger", () => {
+	test("logger.debug is called during processing when logger is provided", async () => {
+		const mockLogger = {
+			debug: jest.fn(),
+		};
+
+		const router = new StreamRouter({ logger: mockLogger });
+		const handler = jest.fn();
+
+		const isUser = (record: unknown): record is { pk: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.onInsert(isUser, handler);
+
+		const record = createStreamRecord(
+			"INSERT",
+			{ pk: "user#1", sk: "profile" },
+			{ pk: "user#1", sk: "profile", name: "Test" },
+		);
+		const event = createStreamEvent([record]);
+
+		await router.process(event);
+
+		// Logger should have been called multiple times
+		expect(mockLogger.debug).toHaveBeenCalled();
+
+		// Check for specific log messages
+		const calls = mockLogger.debug.mock.calls.map((call) => call[0]);
+		expect(calls).toContain("Processing DynamoDB stream event");
+		expect(calls).toContain("Processing record");
+		expect(calls).toContain("Handler matched");
+		expect(calls).toContain("Record processed");
+	});
+
+	test("no errors when logger is not provided", async () => {
+		const router = new StreamRouter(); // No logger
+		const handler = jest.fn();
+
+		const isUser = (record: unknown): record is { pk: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.onInsert(isUser, handler);
+
+		const record = createStreamRecord(
+			"INSERT",
+			{ pk: "user#1", sk: "profile" },
+			{ pk: "user#1", sk: "profile", name: "Test" },
+		);
+		const event = createStreamEvent([record]);
+
+		// Should not throw
+		await expect(router.process(event)).resolves.toBeDefined();
+	});
+
+	test("logger receives data object with context", async () => {
+		const mockLogger = {
+			debug: jest.fn(),
+		};
+
+		const router = new StreamRouter({ logger: mockLogger });
+		const handler = jest.fn();
+
+		const isUser = (record: unknown): record is { pk: string } =>
+			typeof record === "object" && record !== null && "pk" in record;
+
+		router.onInsert(isUser, handler);
+
+		const record = createStreamRecord(
+			"INSERT",
+			{ pk: "user#1", sk: "profile" },
+			{ pk: "user#1", sk: "profile", name: "Test" },
+		);
+		const event = createStreamEvent([record]);
+
+		await router.process(event);
+
+		// Find the "Processing DynamoDB stream event" call
+		const eventCall = mockLogger.debug.mock.calls.find(
+			(call) => call[0] === "Processing DynamoDB stream event",
+		);
+		expect(eventCall).toBeDefined();
+		expect(eventCall[1]).toHaveProperty("recordCount", 1);
+	});
+});

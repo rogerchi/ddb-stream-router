@@ -20,6 +20,7 @@ import type {
 	HandlerFunction,
 	HandlerOptions,
 	InsertHandler,
+	Logger,
 	Matcher,
 	MiddlewareFunction,
 	ModifyHandler,
@@ -166,6 +167,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	private readonly _deferQueue: string | undefined;
 	private readonly _sqsClient: SQSClient | undefined;
 	private readonly _reportBatchItemFailures: boolean;
+	private readonly _logger: Logger | undefined;
 	private readonly _handlers: RegisteredHandler[] = [];
 	private readonly _middleware: MiddlewareFunction[] = [];
 
@@ -185,6 +187,14 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		this._deferQueue = options?.deferQueue;
 		this._sqsClient = options?.sqsClient;
 		this._reportBatchItemFailures = options?.reportBatchItemFailures ?? true;
+		this._logger = options?.logger;
+	}
+
+	/**
+	 * Internal logging helper - only logs if logger is configured.
+	 */
+	private log(message: string, data?: Record<string, unknown>): void {
+		this._logger?.debug(message, data);
 	}
 
 	get streamViewType(): V {
@@ -732,6 +742,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			record: record,
 		};
 
+		this.log("Enqueueing deferred record to SQS", {
+			handlerId: handler.id,
+			eventID: record.eventID,
+			queueUrl,
+			delaySeconds: handler.deferOptions?.delaySeconds,
+		});
+
 		await this._sqsClient.sendMessage({
 			QueueUrl: queueUrl,
 			MessageBody: JSON.stringify(message),
@@ -773,10 +790,19 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			Map<string, Array<Record<string, unknown>>>
 		>();
 
+		this.log("Processing DynamoDB stream event", {
+			recordCount: event.Records.length,
+		});
+
 		for (const record of event.Records) {
 			result.processed++;
 			const recordId = record.eventID ?? `record_${result.processed}`;
 			const sequenceNumber = record.dynamodb?.SequenceNumber;
+
+			this.log("Processing record", {
+				eventID: recordId,
+				eventName: record.eventName,
+			});
 
 			try {
 				// Check same region filter
@@ -784,6 +810,9 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					this._sameRegionOnly &&
 					!this.isRecordFromSameRegion(record.eventSourceARN)
 				) {
+					this.log("Skipping record from different region", {
+						eventID: recordId,
+					});
 					result.succeeded++;
 					continue;
 				}
@@ -791,6 +820,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				// Execute middleware chain - if middleware doesn't call next(), skip handlers
 				const middlewareCompleted = await this.executeMiddleware(record, 0);
 				if (!middlewareCompleted) {
+					this.log("Middleware skipped handlers", { eventID: recordId });
 					result.succeeded++;
 					continue;
 				}
@@ -808,6 +838,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				const oldImage = this.unmarshallImage(record.dynamodb?.OldImage);
 				const newImage = this.unmarshallImage(record.dynamodb?.NewImage);
 
+				let matchedHandlerCount = 0;
 				for (const handler of matchingHandlers) {
 					const { matches, parsedData } = this.matchHandler(
 						handler,
@@ -817,9 +848,20 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 						// For MODIFY events, check attribute filter
 						if (eventType === "MODIFY") {
 							if (!this.matchesAttributeFilter(handler, oldImage, newImage)) {
+								this.log("Handler skipped - attribute filter not matched", {
+									eventID: recordId,
+									handlerId: handler.id,
+								});
 								continue; // Skip handler if attribute filter doesn't match
 							}
 						}
+
+						matchedHandlerCount++;
+						this.log("Handler matched", {
+							eventID: recordId,
+							handlerId: handler.id,
+							deferred: handler.deferred ?? false,
+						});
 
 						// Check if handler is deferred
 						if (handler.deferred && handler.deferOptions?.queue) {
@@ -862,8 +904,16 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					}
 				}
 
+				this.log("Record processed", {
+					eventID: recordId,
+					matchedHandlers: matchedHandlerCount,
+				});
 				result.succeeded++;
 			} catch (error) {
+				this.log("Record processing failed", {
+					eventID: recordId,
+					error: error instanceof Error ? error.message : String(error),
+				});
 				result.failed++;
 				result.errors.push({
 					recordId,
@@ -883,10 +933,21 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			const handler = this._handlers.find((h) => h.id === handlerId);
 			if (!handler) continue;
 
-			for (const [, records] of batchesByKey) {
+			for (const [batchKey, records] of batchesByKey) {
+				this.log("Executing batch handler", {
+					handlerId,
+					batchKey,
+					recordCount: records.length,
+				});
 				try {
 					await handler.handler(records);
+					this.log("Batch handler completed", { handlerId, batchKey });
 				} catch (error) {
+					this.log("Batch handler failed", {
+						handlerId,
+						batchKey,
+						error: error instanceof Error ? error.message : String(error),
+					});
 					result.failed++;
 					result.errors.push({
 						recordId: `batch_${handlerId}`,
@@ -955,9 +1016,15 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			>
 		>();
 
+		this.log("Processing deferred SQS event", {
+			recordCount: sqsEvent.Records.length,
+		});
+
 		for (const sqsRecord of sqsEvent.Records) {
 			result.processed++;
 			const recordId = sqsRecord.messageId ?? `deferred_${result.processed}`;
+
+			this.log("Processing deferred record", { messageId: recordId });
 
 			try {
 				const message: DeferredRecordMessage = JSON.parse(sqsRecord.body);
@@ -966,6 +1033,11 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				if (!handler) {
 					throw new Error(`Handler not found: ${message.handlerId}`);
 				}
+
+				this.log("Deferred handler found", {
+					messageId: recordId,
+					handlerId: handler.id,
+				});
 
 				const record = message.record as DynamoDBRecord;
 				const eventType = record.eventName as "INSERT" | "MODIFY" | "REMOVE";

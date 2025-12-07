@@ -297,6 +297,9 @@ const router = new StreamRouter({
   
   // Return batchItemFailures format for streamHandler/sqsHandler (default: true)
   reportBatchItemFailures: true,
+  
+  // Optional logger for trace logging (e.g., console, pino, Powertools Logger)
+  logger: console,
 });
 ```
 
