@@ -9,17 +9,11 @@ const project = new typescript.TypeScriptProject({
 	devDeps: [
 		"fast-check",
 		"@types/aws-lambda",
-		"@shelf/jest-dynamodb",
+		"@aws-sdk/client-sqs",
 		"@aws-sdk/client-dynamodb",
-		"@aws-sdk/client-dynamodb-streams",
-		"@aws-sdk/lib-dynamodb",
+		"aws-sdk-client-mock",
 	],
-	peerDeps: ["@aws-sdk/util-dynamodb"],
-	jestOptions: {
-		jestConfig: {
-			preset: "@shelf/jest-dynamodb",
-		},
-	},
+	peerDeps: ["@aws-sdk/util-dynamodb", "@aws-sdk/client-sqs"],
 });
 
 project.synth();

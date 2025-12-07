@@ -227,13 +227,13 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-dynamodb,@aws-sdk/client-dynamodb-streams,@aws-sdk/lib-dynamodb,@shelf/jest-dynamodb,@types/aws-lambda,@types/jest,@types/node,fast-check,jest,projen,ts-jest,ts-node,typescript,@aws-sdk/util-dynamodb"
+          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-dynamodb,@aws-sdk/client-sqs,@types/aws-lambda,@types/jest,@types/node,aws-sdk-client-mock,fast-check,jest,projen,ts-jest,ts-node,typescript,@aws-sdk/util-dynamodb"
         },
         {
           "exec": "yarn install --check-files"
         },
         {
-          "exec": "yarn upgrade @aws-sdk/client-dynamodb @aws-sdk/client-dynamodb-streams @aws-sdk/lib-dynamodb @biomejs/biome @shelf/jest-dynamodb @types/aws-lambda @types/jest @types/node commit-and-tag-version constructs fast-check jest jest-junit projen ts-jest ts-node typescript @aws-sdk/util-dynamodb"
+          "exec": "yarn upgrade @aws-sdk/client-dynamodb @aws-sdk/client-sqs @biomejs/biome @types/aws-lambda @types/jest @types/node aws-sdk-client-mock commit-and-tag-version constructs fast-check jest jest-junit projen ts-jest ts-node typescript @aws-sdk/util-dynamodb"
         },
         {
           "exec": "npx projen"

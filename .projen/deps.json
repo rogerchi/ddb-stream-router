@@ -5,20 +5,12 @@
       "type": "build"
     },
     {
-      "name": "@aws-sdk/client-dynamodb-streams",
-      "type": "build"
-    },
-    {
-      "name": "@aws-sdk/lib-dynamodb",
+      "name": "@aws-sdk/client-sqs",
       "type": "build"
     },
     {
       "name": "@biomejs/biome",
       "version": "^2",
-      "type": "build"
-    },
-    {
-      "name": "@shelf/jest-dynamodb",
       "type": "build"
     },
     {
@@ -31,6 +23,10 @@
     },
     {
       "name": "@types/node",
+      "type": "build"
+    },
+    {
+      "name": "aws-sdk-client-mock",
       "type": "build"
     },
     {
@@ -71,6 +67,10 @@
     {
       "name": "typescript",
       "type": "build"
+    },
+    {
+      "name": "@aws-sdk/client-sqs",
+      "type": "peer"
     },
     {
       "name": "@aws-sdk/util-dynamodb",

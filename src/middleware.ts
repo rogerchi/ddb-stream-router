@@ -1,5 +1,6 @@
+import type { AttributeValue } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
-import type { AttributeValue, DynamoDBRecord } from "aws-lambda";
+import type { DynamoDBRecord } from "aws-lambda";
 import type { MiddlewareFunction } from "./types";
 
 /**
