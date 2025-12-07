@@ -1,7 +1,7 @@
 # Implementation Plan
 
-- [ ] 1. Set up project dependencies via projen
-  - [ ] 1.1 Configure projen dependencies
+- [x] 1. Set up project dependencies via projen
+  - [x] 1.1 Configure projen dependencies
     - Modify .projenrc.ts to add dependencies:
       - deps: `@aws-sdk/util-dynamodb` (for unmarshalling)
       - devDeps: `fast-check` (for property-based testing), `@types/aws-lambda` (for DynamoDB Stream types)
@@ -9,17 +9,18 @@
     - Run `npx projen` to resynth project files and install dependencies
     - _Requirements: 11.4_
 
-- [ ] 2. Set up project structure and core types
-  - [ ] 2.1 Create core type definitions
+- [x] 2. Set up project structure and core types
+  - [x] 2.1 Create core type definitions
     - Define StreamViewType, AttributeChangeType, HandlerOptions, ModifyHandlerOptions, BatchHandlerOptions
     - Define Discriminator, Parser, and Matcher types
     - Define HandlerContext and ProcessingResult interfaces
     - Add unmarshall option to StreamRouterOptions (default: true)
-    - _Requirements: 1.1, 3.6, 3.7, 10.1, 11.2_
-  - [ ] 2.2 Write property test for valid stream view type configuration
+    - Add sameRegionOnly option to StreamRouterOptions (default: false)
+    - _Requirements: 1.1, 3.6, 3.7, 10.1, 11.2, 13.2_
+  - [x] 2.2 Write property test for valid stream view type configuration
     - **Property 1: Valid stream view type configuration is stored correctly**
     - **Validates: Requirements 1.1**
-  - [ ] 2.3 Write property test for invalid stream view type rejection
+  - [x] 2.3 Write property test for invalid stream view type rejection
     - **Property 2: Invalid stream view type configuration is rejected**
     - **Validates: Requirements 1.3**
 
@@ -28,9 +29,11 @@
     - Implement constructor accepting StreamRouterOptions
     - Store streamViewType configuration (default to NEW_AND_OLD_IMAGES)
     - Store unmarshall configuration (default to true)
+    - Store sameRegionOnly configuration (default to false)
     - Initialize handler registry and middleware array
     - Validate streamViewType and throw ConfigurationError for invalid values
-    - _Requirements: 1.1, 1.2, 1.3, 11.2_
+    - Implement isRecordFromSameRegion() helper method
+    - _Requirements: 1.1, 1.2, 1.3, 11.2, 13.2, 13.4_
   - [ ] 3.2 Implement handler registration methods
     - Implement insert(), modify(), remove() methods
     - Detect whether matcher is discriminator or parser (check for safeParse method)
@@ -108,6 +111,21 @@
   - [ ] 6.13 Write property test for unmarshalling disabled
     - **Property 21: Unmarshalling disabled passes raw format**
     - **Validates: Requirements 11.3**
+  - [ ] 6.14 Implement sameRegionOnly filtering
+    - Check sameRegionOnly option during record processing
+    - Extract region from eventSourceARN and compare to AWS_REGION
+    - Skip records from different regions when enabled
+    - Implement fail-open behavior when AWS_REGION is not set
+    - _Requirements: 13.1, 13.2, 13.3, 13.4_
+  - [ ] 6.15 Write property test for same region filtering
+    - **Property 22: Same region filtering skips cross-region records**
+    - **Validates: Requirements 13.1**
+  - [ ] 6.16 Write property test for same region processing
+    - **Property 23: Same region filtering processes matching region records**
+    - **Validates: Requirements 13.3**
+  - [ ] 6.17 Write property test for same region default disabled
+    - **Property 24: Same region filtering defaults to disabled**
+    - **Validates: Requirements 13.2**
 
 - [ ] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

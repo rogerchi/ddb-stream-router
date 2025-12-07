@@ -21,6 +21,8 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 - **Batch_Key**: A function or attribute name used to group records together when batching
 - **DynamoDB_JSON**: The wire format used by DynamoDB that includes type descriptors (e.g., {S: "value"}, {N: "123"})
 - **Unmarshall**: The process of converting DynamoDB JSON format to native JavaScript objects (controlled by unmarshall option, defaults to true)
+- **Same_Region_Only**: A configuration option that filters records to only process those originating from the same AWS region as the Lambda function (useful for global tables)
+- **Event_Source_ARN**: The Amazon Resource Name identifying the DynamoDB stream that triggered the event, contains the region information
 
 ## Requirements
 
@@ -154,7 +156,18 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 3. WHEN a developer creates a Stream_Router with unmarshall option set to false THEN the Stream_Router SHALL pass records in raw DynamoDB JSON format to discriminators, parsers, and handlers
 4. WHEN unmarshalling is enabled THEN the Stream_Router SHALL use the @aws-sdk/util-dynamodb unmarshall function
 
-### Requirement 12
+### Requirement 13
+
+**User Story:** As a developer, I want to filter records by region, so that I can process only records originating from the same region as my Lambda function when using global tables.
+
+#### Acceptance Criteria
+
+1. WHEN a developer creates a Stream_Router with sameRegionOnly option set to true THEN the Stream_Router SHALL skip records where the Event_Source_ARN region differs from the AWS_REGION environment variable
+2. WHEN a developer creates a Stream_Router without specifying the sameRegionOnly option THEN the Stream_Router SHALL default to processing all records regardless of region (sameRegionOnly: false)
+3. WHEN sameRegionOnly is enabled and a record's Event_Source_ARN region matches AWS_REGION THEN the Stream_Router SHALL process the record normally
+4. WHEN sameRegionOnly is enabled and AWS_REGION is not set THEN the Stream_Router SHALL process all records (fail-open behavior)
+
+### Requirement 14
 
 **User Story:** As a developer, I want comprehensive test coverage for the Stream Router, so that I can trust the library behaves correctly in production.
 
@@ -167,3 +180,4 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 5. WHEN integration tests are executed with DynamoDB Local THEN the test suite SHALL verify end-to-end stream event processing
 6. WHEN integration tests are executed THEN the test suite SHALL verify INSERT, MODIFY, and REMOVE events trigger appropriate handlers
 7. WHEN integration tests are executed THEN the test suite SHALL verify stream view type configurations produce correct handler signatures
+8. WHEN unit tests are executed THEN the test suite SHALL verify sameRegionOnly filtering correctly skips cross-region records

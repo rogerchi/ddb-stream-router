@@ -227,13 +227,13 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@types/jest,@types/node,jest,projen,ts-jest,ts-node,typescript"
+          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@types/aws-lambda,@types/jest,@types/node,fast-check,jest,projen,ts-jest,ts-node,typescript,@aws-sdk/util-dynamodb"
         },
         {
           "exec": "yarn install --check-files"
         },
         {
-          "exec": "yarn upgrade @biomejs/biome @types/jest @types/node commit-and-tag-version constructs jest jest-junit projen ts-jest ts-node typescript"
+          "exec": "yarn upgrade @biomejs/biome @types/aws-lambda @types/jest @types/node commit-and-tag-version constructs fast-check jest jest-junit projen ts-jest ts-node typescript @aws-sdk/util-dynamodb"
         },
         {
           "exec": "npx projen"

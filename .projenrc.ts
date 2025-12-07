@@ -5,6 +5,9 @@ const project = new typescript.TypeScriptProject({
 	name: "ddb-stream-router",
 	projenrcTs: true,
 	biome: true,
+	deps: ["@aws-sdk/util-dynamodb"],
+	devDeps: ["fast-check", "@types/aws-lambda"],
+	peerDeps: ["@aws-sdk/util-dynamodb"],
 });
 
 project.synth();

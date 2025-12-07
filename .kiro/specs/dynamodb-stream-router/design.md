@@ -78,6 +78,7 @@ type StreamViewType = 'KEYS_ONLY' | 'NEW_IMAGE' | 'OLD_IMAGE' | 'NEW_AND_OLD_IMA
 interface StreamRouterOptions {
   streamViewType?: StreamViewType;
   unmarshall?: boolean;  // Whether to unmarshall DynamoDB JSON to native JS (default: true)
+  sameRegionOnly?: boolean;  // Only process records from same region as Lambda (default: false)
 }
 
 // Attribute change types for MODIFY filtering
@@ -136,6 +137,24 @@ DynamoDB Stream records come in DynamoDB JSON format with type descriptors. The 
 This allows users to:
 - Use the default behavior for typical use cases with Zod schemas expecting native JS
 - Opt out of unmarshalling if they need to work with DynamoDB JSON format directly
+
+### Region Filtering for Global Tables
+
+When using DynamoDB Global Tables, stream events can originate from any region. The `sameRegionOnly` option allows filtering records to only process those from the current Lambda's region.
+
+```typescript
+// Enable same-region filtering
+const router = new StreamRouter({ sameRegionOnly: true });
+```
+
+**Region detection:**
+- The router extracts the region from the record's `eventSourceARN` (format: `arn:aws:dynamodb:REGION:account:table/...`)
+- Compares against the `AWS_REGION` environment variable (automatically set by Lambda)
+- Records from different regions are skipped during processing
+
+**Fail-open behavior:**
+- If `AWS_REGION` is not set, all records are processed
+- If `eventSourceARN` is missing or malformed, the record is processed
 
 ### Discriminator and Parser Types
 
@@ -421,6 +440,24 @@ interface DiffResult {
 *For any* record in DynamoDB JSON format, when unmarshall option is false, the router should pass the data in raw DynamoDB JSON format without transformation.
 
 **Validates: Requirements 11.3**
+
+### Property 22: Same region filtering skips cross-region records
+
+*For any* record with an eventSourceARN from a different region than AWS_REGION, when sameRegionOnly is true, the router should skip the record without invoking any handlers.
+
+**Validates: Requirements 13.1**
+
+### Property 23: Same region filtering processes matching region records
+
+*For any* record with an eventSourceARN from the same region as AWS_REGION, when sameRegionOnly is true, the router should process the record normally through middleware and handlers.
+
+**Validates: Requirements 13.3**
+
+### Property 24: Same region filtering defaults to disabled
+
+*For any* StreamRouter created without specifying sameRegionOnly, the router should process all records regardless of their origin region.
+
+**Validates: Requirements 13.2**
 
 ## Error Handling
 
