@@ -65,6 +65,18 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 };
 ```
 
+## Discriminator Matching
+
+The discriminator/parser is matched against different images based on event type:
+
+| Event Type | Image Used for Matching |
+|------------|------------------------|
+| `INSERT` | newImage |
+| `MODIFY` | newImage |
+| `REMOVE` | oldImage |
+
+For MODIFY events, the **newImage** is used for matching because you typically want to route based on the current state of the record. If a record's type changed (e.g., `pk` prefix changed from `USER#` to `ADMIN#`), the handler for the new type will be invoked.
+
 ## Using Zod Schemas
 
 ```typescript
