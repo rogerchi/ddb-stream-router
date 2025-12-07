@@ -1,7 +1,11 @@
 // Main exports
 
 // Utility exports
-export { diffAttributes, hasAttributeChange } from "./attribute-diff";
+export {
+	diffAttributes,
+	getNestedValue,
+	hasAttributeChange,
+} from "./attribute-diff";
 export { ConfigurationError } from "./errors";
 export type { UnmarshalledRecord } from "./middleware";
 export { unmarshallMiddleware } from "./middleware";

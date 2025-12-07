@@ -1,6 +1,30 @@
 import type { AttributeChangeType, AttributeDiff, DiffResult } from "./types";
 
 /**
+ * Gets a nested value from an object using dot notation path.
+ * @param obj - The object to traverse
+ * @param path - Dot notation path (e.g., "preferences.theme")
+ * @returns The value at the path, or undefined if not found
+ */
+export function getNestedValue(
+	obj: Record<string, unknown> | undefined,
+	path: string,
+): unknown {
+	if (!obj) return undefined;
+
+	const parts = path.split(".");
+	let current: unknown = obj;
+
+	for (const part of parts) {
+		if (current === null || current === undefined) return undefined;
+		if (typeof current !== "object") return undefined;
+		current = (current as Record<string, unknown>)[part];
+	}
+
+	return current;
+}
+
+/**
  * Checks if a value is a collection type (List, Map, or Set-like array).
  */
 function isCollection(value: unknown): boolean {
@@ -160,33 +184,34 @@ function detectCollectionChange(
 }
 
 /**
- * Compares oldImage and newImage to detect attribute-level changes.
- * Returns a DiffResult containing all detected changes.
+ * Recursively compares objects and generates changes with nested paths.
  *
- * @param oldImage - The old image from the DynamoDB stream record
- * @param newImage - The new image from the DynamoDB stream record
- * @returns DiffResult with list of AttributeDiff objects
+ * @param oldObj - The old object
+ * @param newObj - The new object
+ * @param prefix - Current path prefix for nested attributes
+ * @param changes - Array to collect changes
  */
-export function diffAttributes(
-	oldImage: Record<string, unknown> | undefined,
-	newImage: Record<string, unknown> | undefined,
-): DiffResult {
-	const changes: AttributeDiff[] = [];
-
-	const oldKeys = new Set(oldImage ? Object.keys(oldImage) : []);
-	const newKeys = new Set(newImage ? Object.keys(newImage) : []);
+function diffAttributesRecursive(
+	oldObj: Record<string, unknown> | undefined,
+	newObj: Record<string, unknown> | undefined,
+	prefix: string,
+	changes: AttributeDiff[],
+): void {
+	const oldKeys = new Set(oldObj ? Object.keys(oldObj) : []);
+	const newKeys = new Set(newObj ? Object.keys(newObj) : []);
 	const allKeys = new Set([...oldKeys, ...newKeys]);
 
 	for (const key of allKeys) {
-		const oldValue = oldImage?.[key];
-		const newValue = newImage?.[key];
+		const path = prefix ? `${prefix}.${key}` : key;
+		const oldValue = oldObj?.[key];
+		const newValue = newObj?.[key];
 		const existsInOld = oldKeys.has(key);
 		const existsInNew = newKeys.has(key);
 
 		// New attribute added
 		if (!existsInOld && existsInNew) {
 			changes.push({
-				attribute: key,
+				attribute: path,
 				changeType: "new_attribute",
 				newValue,
 			});
@@ -196,7 +221,7 @@ export function diffAttributes(
 		// Attribute removed
 		if (existsInOld && !existsInNew) {
 			changes.push({
-				attribute: key,
+				attribute: path,
 				changeType: "remove_attribute",
 				oldValue,
 			});
@@ -209,26 +234,68 @@ export function diffAttributes(
 				continue; // No change
 			}
 
-			// Check for collection-level changes first
-			const collectionChange = detectCollectionChange(oldValue, newValue);
-			if (collectionChange) {
+			// Check for collection-level changes first (arrays)
+			if (Array.isArray(oldValue) && Array.isArray(newValue)) {
+				const collectionChange = detectCollectionChange(oldValue, newValue);
+				if (collectionChange) {
+					changes.push({
+						attribute: path,
+						changeType: collectionChange,
+						oldValue,
+						newValue,
+					});
+				}
+				continue;
+			}
+
+			// For nested objects (Maps), recurse to get granular changes
+			if (isMap(oldValue) && isMap(newValue)) {
+				// Add a changed_attribute for the parent path
 				changes.push({
-					attribute: key,
-					changeType: collectionChange,
-					oldValue,
-					newValue,
-				});
-			} else {
-				// Scalar attribute changed
-				changes.push({
-					attribute: key,
+					attribute: path,
 					changeType: "changed_attribute",
 					oldValue,
 					newValue,
 				});
+
+				// Also recurse to get nested changes
+				diffAttributesRecursive(
+					oldValue as Record<string, unknown>,
+					newValue as Record<string, unknown>,
+					path,
+					changes,
+				);
+				continue;
 			}
+
+			// Scalar attribute changed or type changed
+			changes.push({
+				attribute: path,
+				changeType: "changed_attribute",
+				oldValue,
+				newValue,
+			});
 		}
 	}
+}
+
+/**
+ * Compares oldImage and newImage to detect attribute-level changes.
+ * Returns a DiffResult containing all detected changes, including nested paths.
+ *
+ * Nested attributes are represented with dot notation (e.g., "preferences.theme").
+ * Both the parent path and nested paths are included in the changes.
+ *
+ * @param oldImage - The old image from the DynamoDB stream record
+ * @param newImage - The new image from the DynamoDB stream record
+ * @returns DiffResult with list of AttributeDiff objects
+ */
+export function diffAttributes(
+	oldImage: Record<string, unknown> | undefined,
+	newImage: Record<string, unknown> | undefined,
+): DiffResult {
+	const changes: AttributeDiff[] = [];
+	diffAttributesRecursive(oldImage, newImage, "", changes);
 
 	return {
 		hasChanges: changes.length > 0,
@@ -238,9 +305,15 @@ export function diffAttributes(
 
 /**
  * Checks if a specific attribute has a specific type of change.
+ * Supports dot notation for nested attributes (e.g., "preferences.theme").
+ *
+ * Matching behavior:
+ * - Exact match: "preferences.theme" matches changes to "preferences.theme"
+ * - Parent match: "preferences" matches changes to "preferences" OR any nested path like "preferences.theme"
+ * - Child match: "preferences.theme" does NOT match changes to just "preferences"
  *
  * @param diffResult - The result from diffAttributes
- * @param attribute - The attribute name to check
+ * @param attribute - The attribute name or path to check (supports dot notation)
  * @param changeTypes - The change type(s) to match (OR logic if array)
  * @returns true if the attribute has any of the specified change types
  */
@@ -249,16 +322,24 @@ export function hasAttributeChange(
 	attribute: string,
 	changeTypes?: AttributeChangeType | AttributeChangeType[],
 ): boolean {
-	const attributeChanges = diffResult.changes.filter(
-		(c) => c.attribute === attribute,
-	);
+	// Find changes that match the attribute path
+	// A change matches if:
+	// 1. Exact match: change.attribute === attribute
+	// 2. Nested match: change.attribute starts with attribute + "." (watching parent catches child changes)
+	const attributeChanges = diffResult.changes.filter((c) => {
+		// Exact match
+		if (c.attribute === attribute) return true;
+		// Nested match - if watching "preferences", match "preferences.theme"
+		if (c.attribute.startsWith(`${attribute}.`)) return true;
+		return false;
+	});
 
 	if (attributeChanges.length === 0) {
 		return false;
 	}
 
 	if (!changeTypes) {
-		return true; // Any change to the attribute
+		return true; // Any change to the attribute or its children
 	}
 
 	const typesArray = Array.isArray(changeTypes) ? changeTypes : [changeTypes];

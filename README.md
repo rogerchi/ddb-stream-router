@@ -103,6 +103,25 @@ router.onModify(
   { attribute: 'email', changeType: 'changed_attribute' }
 );
 
+// Nested attributes with dot notation
+router.onModify(
+  isUser,
+  async (oldUser, newUser, ctx) => {
+    console.log(`Theme: ${oldUser.preferences.theme} -> ${newUser.preferences.theme}`);
+  },
+  { attribute: 'preferences.theme', changeType: 'changed_attribute' }
+);
+
+// Watching parent catches all nested changes
+router.onModify(
+  isUser,
+  async (oldUser, newUser, ctx) => {
+    // Triggers when preferences.theme OR preferences.notifications changes
+    console.log('Any preference changed');
+  },
+  { attribute: 'preferences' }
+);
+
 // Trigger when tags are added to a collection
 router.onModify(
   isUser,

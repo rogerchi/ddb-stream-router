@@ -882,7 +882,7 @@ describe("Collection Change Detection Properties", () => {
 		);
 	});
 
-	test("Property 16: new_item_in_collection detected when map has keys added", () => {
+	test("Property 16: new_attribute detected on nested path when map has keys added", () => {
 		fc.assert(
 			fc.property(
 				fc.string({ minLength: 1, maxLength: 20 }),
@@ -900,20 +900,21 @@ describe("Collection Change Detection Properties", () => {
 					if (newKey === "existingKey") return true;
 
 					const diff = diffAttributes(oldImage, newImage);
-					const hasNewItem = hasAttributeChange(
+					// With nested attribute support, new keys in maps generate new_attribute on nested path
+					const hasNewAttr = hasAttributeChange(
 						diff,
-						attrName,
-						"new_item_in_collection",
+						`${attrName}.${newKey}`,
+						"new_attribute",
 					);
 
-					return hasNewItem === true;
+					return hasNewAttr === true;
 				},
 			),
 			{ numRuns: 100 },
 		);
 	});
 
-	test("Property 16: remove_item_from_collection detected when map has keys removed", () => {
+	test("Property 16: remove_attribute detected on nested path when map has keys removed", () => {
 		fc.assert(
 			fc.property(
 				fc.string({ minLength: 1, maxLength: 20 }),
@@ -931,20 +932,21 @@ describe("Collection Change Detection Properties", () => {
 					if (keyToRemove === "existingKey") return true;
 
 					const diff = diffAttributes(oldImage, newImage);
-					const hasRemovedItem = hasAttributeChange(
+					// With nested attribute support, removed keys in maps generate remove_attribute on nested path
+					const hasRemovedAttr = hasAttributeChange(
 						diff,
-						attrName,
-						"remove_item_from_collection",
+						`${attrName}.${keyToRemove}`,
+						"remove_attribute",
 					);
 
-					return hasRemovedItem === true;
+					return hasRemovedAttr === true;
 				},
 			),
 			{ numRuns: 100 },
 		);
 	});
 
-	test("Property 16: changed_item_in_collection detected when map value changes", () => {
+	test("Property 16: changed_attribute detected on nested path when map value changes", () => {
 		fc.assert(
 			fc.property(
 				fc.string({ minLength: 1, maxLength: 20 }),
@@ -962,13 +964,14 @@ describe("Collection Change Detection Properties", () => {
 					};
 
 					const diff = diffAttributes(oldImage, newImage);
-					const hasChangedItem = hasAttributeChange(
+					// With nested attribute support, changed values in maps generate changed_attribute on nested path
+					const hasChangedAttr = hasAttributeChange(
 						diff,
-						attrName,
-						"changed_item_in_collection",
+						`${attrName}.key`,
+						"changed_attribute",
 					);
 
-					return hasChangedItem === true;
+					return hasChangedAttr === true;
 				},
 			),
 			{ numRuns: 100 },

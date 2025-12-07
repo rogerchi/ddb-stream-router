@@ -100,6 +100,39 @@ router.onModify(
 	{ attribute: "preferences", changeType: "changed_attribute" },
 );
 
+// ============================================================================
+// NESTED ATTRIBUTE FILTERING (Dot Notation)
+// ============================================================================
+
+// Trigger ONLY when preferences.theme changes (not other preferences)
+router.onModify(
+	isUser,
+	async (oldUser, newUser, ctx) => {
+		console.log(`Theme changed: ${oldUser.preferences.theme} -> ${newUser.preferences.theme}`);
+	},
+	{ attribute: "preferences.theme", changeType: "changed_attribute" },
+);
+
+// Trigger when preferences.notifications changes
+router.onModify(
+	isUser,
+	async (oldUser, newUser, ctx) => {
+		console.log(`Notifications setting changed to: ${newUser.preferences.notifications}`);
+	},
+	{ attribute: "preferences.notifications", changeType: "changed_attribute" },
+);
+
+// Watching a parent path catches ALL nested changes
+// This triggers when preferences.theme OR preferences.notifications changes
+router.onModify(
+	isUser,
+	async (oldUser, newUser, ctx) => {
+		console.log("Any preference changed - syncing to external system");
+		await syncPreferencesToExternalSystem(newUser);
+	},
+	{ attribute: "preferences" }, // No changeType = any change
+);
+
 // Multiple change types - triggers on any of them (OR logic)
 router.onModify(
 	isUser,
