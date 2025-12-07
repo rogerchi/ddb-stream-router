@@ -224,16 +224,11 @@ Offload heavy processing to SQS:
 
 ```typescript
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
-
-const sqsClient = new SQSClient({});
+import { StreamRouter, createSQSClient } from 'ddb-stream-router';
 
 const router = new StreamRouter({
   deferQueue: process.env.DEFER_QUEUE_URL,
-  sqsClient: {
-    sendMessage: async (params) => {
-      return sqsClient.send(new SendMessageCommand(params));
-    },
-  },
+  sqsClient: createSQSClient(new SQSClient({}), SendMessageCommand),
 });
 
 // Immediate handler

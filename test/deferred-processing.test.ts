@@ -3,6 +3,7 @@
  */
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { mockClient } from "aws-sdk-client-mock";
+import { createSQSClient } from "../src/sqs-adapter";
 import { StreamRouter } from "../src/stream-router";
 import type { DeferredRecordMessage } from "../src/types";
 import { createStreamEvent, createStreamRecord } from "./test-utils";
@@ -14,23 +15,9 @@ describe("Deferred Processing with SQS", () => {
 		sqsMock.reset();
 	});
 
-	// Create an SQS client adapter that wraps the AWS SDK client
+	// Use the createSQSClient helper to wrap the AWS SDK client
 	function createSqsClientAdapter(client: SQSClient) {
-		return {
-			sendMessage: async (params: {
-				QueueUrl: string;
-				MessageBody: string;
-				DelaySeconds?: number;
-			}) => {
-				return client.send(
-					new SendMessageCommand({
-						QueueUrl: params.QueueUrl,
-						MessageBody: params.MessageBody,
-						DelaySeconds: params.DelaySeconds,
-					}),
-				);
-			},
-		};
+		return createSQSClient(client, SendMessageCommand);
 	}
 
 	describe("Enqueueing to SQS", () => {

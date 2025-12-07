@@ -9,6 +9,7 @@ export {
 export { ConfigurationError } from "./errors";
 export type { UnmarshalledRecord } from "./middleware";
 export { unmarshallMiddleware } from "./middleware";
+export { createSQSClient } from "./sqs-adapter";
 export { HandlerRegistration, StreamRouter } from "./stream-router";
 // Type exports
 export type {

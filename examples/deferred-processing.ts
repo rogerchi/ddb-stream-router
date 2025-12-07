@@ -6,7 +6,7 @@
  */
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import type { DynamoDBStreamHandler, SQSHandler } from "aws-lambda";
-import { StreamRouter } from "../src";
+import { StreamRouter, createSQSClient } from "../src";
 
 // Entity types
 interface Order {
@@ -23,39 +23,21 @@ const isOrder = (record: unknown): record is Order =>
 	"pk" in record &&
 	(record as { pk: string }).pk.startsWith("ORDER#");
 
-// Create SQS client adapter
-const sqsClient = new SQSClient({});
-const sqsClientAdapter = {
-	sendMessage: async (params: {
-		QueueUrl: string;
-		MessageBody: string;
-		DelaySeconds?: number;
-	}) => {
-		return sqsClient.send(
-			new SendMessageCommand({
-				QueueUrl: params.QueueUrl,
-				MessageBody: params.MessageBody,
-				DelaySeconds: params.DelaySeconds,
-			}),
-		);
-	},
-};
-
-// Create router with SQS configuration
+// Create router with SQS configuration using the helper
 const router = new StreamRouter({
 	deferQueue: process.env.DEFER_QUEUE_URL,
-	sqsClient: sqsClientAdapter,
+	sqsClient: createSQSClient(new SQSClient({}), SendMessageCommand),
 });
 
 // Quick handler - runs immediately during stream processing
-router.onInsert(isOrder, async (newOrder, ctx) => {
+router.onInsert(isOrder, async (newOrder) => {
 	console.log(`Order ${newOrder.orderId} received - quick acknowledgment`);
 	// Fast operations only: update counters, simple logging
 });
 
 // Deferred handler - enqueued to SQS for later processing
 router
-	.onInsert(isOrder, async (newOrder, ctx) => {
+	.onInsert(isOrder, async (newOrder) => {
 		console.log(`Processing order ${newOrder.orderId} - sending emails, generating PDFs...`);
 		// Heavy operations: send emails, generate invoices, call external APIs
 		await sendOrderConfirmationEmail(newOrder.customerEmail, newOrder.orderId);
