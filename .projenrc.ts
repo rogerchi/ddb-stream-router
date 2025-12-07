@@ -17,4 +17,7 @@ const project = new typescript.TypeScriptProject({
 	peerDeps: ["@aws-sdk/util-dynamodb", "@aws-sdk/client-sqs"],
 });
 
+// Exclude files from npm package
+project.npmignore?.addPatterns("/.kiro/", "/examples/", "/biome.jsonc");
+
 project.synth();

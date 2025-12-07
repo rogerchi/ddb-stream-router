@@ -20,6 +20,9 @@ dist
 /.idea/
 /.projenrc.js
 tsconfig.tsbuildinfo
+/.kiro/
+/examples/
+/biome.jsonc
 /.gitattributes
 /.projenrc.ts
 /projenrc
