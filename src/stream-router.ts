@@ -25,6 +25,7 @@ import type {
 	ModifyHandler,
 	ModifyHandlerOptions,
 	Parser,
+	PrimaryKeyConfig,
 	ProcessingResult,
 	ProcessOptions,
 	RegisteredHandler,
@@ -585,6 +586,20 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	}
 
 	/**
+	 * Checks if a batchKey option is a PrimaryKeyConfig object.
+	 */
+	private isPrimaryKeyConfig(
+		batchKey: string | PrimaryKeyConfig | ((record: unknown) => string),
+	): batchKey is PrimaryKeyConfig {
+		return (
+			typeof batchKey === "object" &&
+			batchKey !== null &&
+			"pk" in batchKey &&
+			typeof batchKey.pk === "string"
+		);
+	}
+
+	/**
 	 * Gets the batch key for a record based on handler options.
 	 */
 	private getBatchKey(
@@ -604,6 +619,20 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 		if (typeof options.batchKey === "function") {
 			return options.batchKey(imageData);
+		}
+
+		// Check if batchKey is a PrimaryKeyConfig
+		if (this.isPrimaryKeyConfig(options.batchKey)) {
+			if (imageData && typeof imageData === "object") {
+				const data = imageData as Record<string, unknown>;
+				const pkValue = String(data[options.batchKey.pk] ?? "__undefined__");
+				if (options.batchKey.sk) {
+					const skValue = String(data[options.batchKey.sk] ?? "__undefined__");
+					return `${pkValue}#${skValue}`;
+				}
+				return pkValue;
+			}
+			return "__undefined__";
 		}
 
 		// batchKey is a string - use it as attribute name

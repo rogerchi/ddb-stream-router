@@ -12,8 +12,8 @@ import { StreamRouter } from "../src";
 
 // Entity types
 interface InventoryChange {
-	pk: string;
-	sk: string;
+	pk: string; // e.g., "INV#warehouse-1"
+	sk: string; // e.g., "PRODUCT#sku-123"
 	productId: string;
 	warehouseId: string;
 	quantity: number;
@@ -41,8 +41,8 @@ const isAuditLog = (record: unknown): record is AuditLog =>
 
 const router = new StreamRouter();
 
-// Batch all inventory changes together
-// Handler receives array of all matching records at once
+// Batch all inventory changes together (no grouping key)
+// All matching records in the batch are passed to the handler at once
 router.insert(
 	isInventoryChange,
 	async (records) => {
@@ -61,8 +61,8 @@ router.insert(
 	{ batch: true },
 );
 
-// Batch audit logs by user ID
-// Records are grouped by the batchKey before handler is called
+// Batch audit logs by user ID (simple string attribute)
+// Records are grouped by the userId attribute before handler is called
 router.insert(
 	isAuditLog,
 	async (records) => {
@@ -78,16 +78,37 @@ router.insert(
 	{ batch: true, batchKey: "userId" },
 );
 
-// You can also use a function for complex batch keys
+// Group by primary key (partition key + sort key)
+// This groups all changes to the same DynamoDB item together
 router.modify(
 	isInventoryChange,
 	async (records) => {
-		const warehouseId = records[0].newImage.warehouseId;
-		console.log(`Processing inventory updates for warehouse ${warehouseId}`);
+		// All records in this batch are for the same pk+sk (same item)
+		const { pk, sk } = records[0].newImage;
+		console.log(`Processing ${records.length} updates for item ${pk}/${sk}`);
+
+		// Process all changes to this specific item
+		for (const { oldImage, newImage } of records) {
+			console.log(`  Quantity: ${oldImage.quantity} -> ${newImage.quantity}`);
+		}
 	},
 	{
 		batch: true,
-		batchKey: (record) => (record as InventoryChange).warehouseId,
+		batchKey: { pk: "pk", sk: "sk" }, // Group by composite primary key
+	},
+);
+
+// Group by partition key only (all items with same pk)
+// Useful when you want to process all items in a partition together
+router.remove(
+	isInventoryChange,
+	async (records) => {
+		const warehouseId = records[0].oldImage.warehouseId;
+		console.log(`Processing ${records.length} deletions for warehouse ${warehouseId}`);
+	},
+	{
+		batch: true,
+		batchKey: { pk: "pk" }, // Group by partition key only
 	},
 );
 

@@ -57,10 +57,23 @@ export interface HandlerOptions {
 	batch?: boolean; // When true, handler receives all matching records as array
 }
 
+// Primary key configuration for batch grouping
+export interface PrimaryKeyConfig {
+	pk: string; // Partition key attribute name
+	sk?: string; // Sort key attribute name (optional for simple primary keys)
+}
+
 // Batch handler options with grouping key
 export interface BatchHandlerOptions extends HandlerOptions {
 	batch: true;
-	batchKey?: string | ((record: unknown) => string); // Key to group records by
+	/**
+	 * Key to group records by. Can be:
+	 * - A string attribute name from the record
+	 * - A PrimaryKeyConfig object specifying pk (and optionally sk) attribute names
+	 * - A function that returns a string key from the record
+	 * If not specified, all matching records are grouped together.
+	 */
+	batchKey?: string | PrimaryKeyConfig | ((record: unknown) => string);
 }
 
 // Discriminator function - type guard pattern

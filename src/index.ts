@@ -28,6 +28,7 @@ export type {
 	ModifyHandler,
 	ModifyHandlerOptions,
 	Parser,
+	PrimaryKeyConfig,
 	ProcessingResult,
 	ProcessOptions,
 	RegisteredHandler,
