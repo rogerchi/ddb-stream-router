@@ -1,8 +1,20 @@
 {
   "dependencies": [
     {
+      "name": "@aws-sdk/client-dynamodb",
+      "type": "build"
+    },
+    {
+      "name": "@aws-sdk/lib-dynamodb",
+      "type": "build"
+    },
+    {
       "name": "@biomejs/biome",
       "version": "^2",
+      "type": "build"
+    },
+    {
+      "name": "@shelf/jest-dynamodb",
       "type": "build"
     },
     {

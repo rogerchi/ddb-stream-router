@@ -247,25 +247,25 @@
     - Export from main index.ts
     - _Requirements: 11.5, 11.6_
 
-- [-] 16. Integration tests with DynamoDB Local
-  - [-] 16.1 Set up DynamoDB Local test infrastructure
+- [x] 16. Integration tests with DynamoDB Local
+  - [x] 16.1 Set up DynamoDB Local test infrastructure
     - Configure @shelf/jest-dynamodb or similar
     - Create test table with streams enabled
     - Set up test utilities for stream event capture
     - _Requirements: 17.5_
-  - [ ] 16.2 Write integration tests for INSERT events
+  - [x] 16.2 Write integration tests for INSERT events
     - Test INSERT event processing with discriminators and parsers
     - Verify handler invocation with correct data
     - _Requirements: 17.6_
-  - [ ] 16.3 Write integration tests for MODIFY events
+  - [x] 16.3 Write integration tests for MODIFY events
     - Test MODIFY event processing with attribute filters
     - Verify oldImage and newImage handling
     - _Requirements: 17.6_
-  - [ ] 16.4 Write integration tests for REMOVE events
+  - [x] 16.4 Write integration tests for REMOVE events
     - Test REMOVE event processing with discriminators and parsers
     - Verify handler invocation with correct data
     - _Requirements: 17.6_
-  - [ ] 16.5 Write integration tests for stream view types
+  - [x] 16.5 Write integration tests for stream view types
     - Test all four stream view type configurations
     - Verify correct data availability per configuration
     - _Requirements: 17.7_

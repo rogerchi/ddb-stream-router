@@ -6,7 +6,13 @@ const project = new typescript.TypeScriptProject({
 	projenrcTs: true,
 	biome: true,
 	deps: ["@aws-sdk/util-dynamodb"],
-	devDeps: ["fast-check", "@types/aws-lambda"],
+	devDeps: [
+		"fast-check",
+		"@types/aws-lambda",
+		"@shelf/jest-dynamodb",
+		"@aws-sdk/client-dynamodb",
+		"@aws-sdk/lib-dynamodb",
+	],
 	peerDeps: ["@aws-sdk/util-dynamodb"],
 });
 
