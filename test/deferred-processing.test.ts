@@ -871,4 +871,160 @@ describe("Deferred Processing with SQS", () => {
 			expect(nonBatchHandler).toHaveBeenCalledTimes(1);
 		});
 	});
+
+	describe("Deterministic Handler IDs", () => {
+		test("handler IDs are deterministic across router instances", async () => {
+			// This test simulates Lambda cold starts where a new router instance is created
+			// The handler IDs must be the same for deferred processing to work
+
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+
+			// Define handlers outside the router to simulate module-level definitions
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("user#");
+
+			const userHandler = async (
+				newImage: { pk: string },
+				_ctx: unknown,
+			): Promise<void> => {
+				console.log("Processing user:", newImage.pk);
+			};
+
+			// Create first router instance (simulating first Lambda invocation)
+			const router1 = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+			router1.onInsert(isUser, userHandler).defer();
+			const handlerId1 = router1.handlers[0].id;
+
+			// Create second router instance (simulating cold start)
+			const router2 = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+			router2.onInsert(isUser, userHandler).defer();
+			const handlerId2 = router2.handlers[0].id;
+
+			// Handler IDs should be identical
+			expect(handlerId1).toBe(handlerId2);
+		});
+
+		test("different handlers get different IDs", async () => {
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("user#");
+
+			const isOrder = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("order#");
+
+			const handler1 = async (
+				newImage: { pk: string },
+				_ctx: unknown,
+			): Promise<void> => {
+				console.log("Handler 1:", newImage.pk);
+			};
+
+			const handler2 = async (
+				newImage: { pk: string },
+				_ctx: unknown,
+			): Promise<void> => {
+				console.log("Handler 2:", newImage.pk);
+			};
+
+			const router = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+
+			router.onInsert(isUser, handler1).defer();
+			router.onInsert(isOrder, handler2).defer();
+
+			const handlerId1 = router.handlers[0].id;
+			const handlerId2 = router.handlers[1].id;
+
+			// Handler IDs should be different
+			expect(handlerId1).not.toBe(handlerId2);
+		});
+
+		test("processDeferred works with handler ID from different router instance", async () => {
+			sqsMock.on(SendMessageCommand).resolves({ MessageId: "test-message-id" });
+
+			const sqsClient = new SQSClient({ region: "us-east-1" });
+
+			// Define handlers outside the router
+			const isUser = (record: unknown): record is { pk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				(record as { pk: string }).pk.startsWith("user#");
+
+			const userHandler = jest.fn();
+
+			// First router instance - enqueues to SQS
+			const streamRouter = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+			streamRouter.onInsert(isUser, userHandler).defer();
+
+			const record = createStreamRecord(
+				"INSERT",
+				{ pk: "user#1", sk: "profile" },
+				{ pk: "user#1", sk: "profile", name: "Test User" },
+			);
+			const streamEvent = createStreamEvent([record]);
+
+			await streamRouter.process(streamEvent);
+
+			// Get the handler ID from the SQS message
+			const calls = sqsMock.commandCalls(SendMessageCommand);
+			const messageBody: DeferredRecordMessage = JSON.parse(
+				calls[0].args[0].input.MessageBody as string,
+			);
+			const enqueuedHandlerId = messageBody.handlerId;
+
+			// Second router instance - processes from SQS (simulating cold start)
+			const sqsRouter = new StreamRouter({
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				sqsClient: createSqsClientAdapter(sqsClient),
+			});
+			const sqsHandler = jest.fn();
+			sqsRouter.onInsert(isUser, sqsHandler).defer();
+
+			// Verify the handler IDs match
+			expect(sqsRouter.handlers[0].id).toBe(enqueuedHandlerId);
+
+			// Process the deferred record
+			const sqsEvent = {
+				Records: [
+					{
+						messageId: "msg-1",
+						body: JSON.stringify(messageBody),
+					},
+				],
+			};
+
+			const result = await sqsRouter.processDeferred(sqsEvent);
+
+			expect(result.processed).toBe(1);
+			expect(result.succeeded).toBe(1);
+			expect(sqsHandler).toHaveBeenCalledTimes(1);
+		});
+	});
 });
