@@ -145,9 +145,13 @@ router.onModify(
 - `new_attribute` - Attribute added
 - `remove_attribute` - Attribute removed  
 - `changed_attribute` - Attribute value changed
-- `new_item_in_collection` - Item added to List/Map/Set
-- `remove_item_from_collection` - Item removed from List/Map/Set
-- `changed_item_in_collection` - Item modified in List/Map
+- `new_item_in_collection` - Item added to List or Set (SS/NS/BS)
+- `remove_item_from_collection` - Item removed from List or Set
+- `changed_item_in_collection` - Items both added and removed in List/Set
+
+**Supported collection types:**
+- Arrays (DynamoDB Lists)
+- Sets (DynamoDB String Sets, Number Sets, Binary Sets)
 
 ## Batch Processing
 
@@ -316,9 +320,9 @@ const result = await router.process(event, { reportBatchItemFailures: true });
 class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
   constructor(options?: StreamRouterOptions);
   
-  insert<T>(matcher, handler, options?): HandlerRegistration;
-  modify<T>(matcher, handler, options?): HandlerRegistration;
-  remove<T>(matcher, handler, options?): HandlerRegistration;
+  onInsert<T>(matcher, handler, options?): HandlerRegistration;
+  onModify<T>(matcher, handler, options?): HandlerRegistration;
+  onRemove<T>(matcher, handler, options?): HandlerRegistration;
   use(middleware): this;
   
   process(event, options?): Promise<ProcessingResult | BatchItemFailuresResponse>;
@@ -331,9 +335,9 @@ class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
 ```typescript
 interface HandlerRegistration {
   defer(options?: { queue?: string; delaySeconds?: number }): StreamRouter;
-  insert(...): HandlerRegistration;
-  modify(...): HandlerRegistration;
-  remove(...): HandlerRegistration;
+  onInsert(...): HandlerRegistration;
+  onModify(...): HandlerRegistration;
+  onRemove(...): HandlerRegistration;
 }
 ```
 
