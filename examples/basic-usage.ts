@@ -41,19 +41,19 @@ const router = new StreamRouter();
 
 // Register handlers for different event types and entity types
 router
-	.insert(isUser, async (newUser, ctx) => {
+	.onInsert(isUser, async (newUser, ctx) => {
 		console.log(`New user created: ${newUser.name}`, ctx.eventID);
 		// Send welcome email, update analytics, etc.
 	})
-	.insert(isOrder, async (newOrder, ctx) => {
+	.onInsert(isOrder, async (newOrder, ctx) => {
 		console.log(`New order placed: ${newOrder.orderId}`, ctx.eventID);
 		// Process payment, send confirmation, etc.
 	})
-	.modify(isUser, async (oldUser, newUser, ctx) => {
+	.onModify(isUser, async (oldUser, newUser, ctx) => {
 		console.log(`User updated: ${oldUser.name} -> ${newUser.name}`);
 		// Sync to external systems, audit log, etc.
 	})
-	.modify(
+	.onModify(
 		isOrder,
 		async (oldOrder, newOrder, ctx) => {
 			console.log(`Order status changed: ${oldOrder.status} -> ${newOrder.status}`);
@@ -61,7 +61,7 @@ router
 		},
 		{ attribute: "status", changeType: "changed_attribute" },
 	)
-	.remove(isUser, async (deletedUser, ctx) => {
+	.onRemove(isUser, async (deletedUser, ctx) => {
 		console.log(`User deleted: ${deletedUser.name}`);
 		// Clean up related data, GDPR compliance, etc.
 	});

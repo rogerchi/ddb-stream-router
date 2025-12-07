@@ -42,16 +42,16 @@ const router = new StreamRouter();
 // Register handlers using Zod schemas as matchers
 // The handler receives fully validated and typed data
 router
-	.insert(UserSchema, async (newUser: User, ctx) => {
+	.onInsert(UserSchema, async (newUser: User, ctx) => {
 		// newUser is guaranteed to match the schema
 		console.log(`Valid user created: ${newUser.email}`);
 	})
-	.insert(OrderSchema, async (newOrder: Order, ctx) => {
+	.onInsert(OrderSchema, async (newOrder: Order, ctx) => {
 		// newOrder is guaranteed to have valid items array
 		const itemCount = newOrder.items.reduce((sum, item) => sum + item.quantity, 0);
 		console.log(`Order ${newOrder.orderId} placed with ${itemCount} items`);
 	})
-	.modify(OrderSchema, async (oldOrder: Order, newOrder: Order, ctx) => {
+	.onModify(OrderSchema, async (oldOrder: Order, newOrder: Order, ctx) => {
 		if (oldOrder.status !== newOrder.status) {
 			console.log(`Order ${newOrder.orderId}: ${oldOrder.status} -> ${newOrder.status}`);
 		}

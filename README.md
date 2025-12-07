@@ -4,7 +4,7 @@ A TypeScript library providing Express-like routing for DynamoDB Stream events. 
 
 ## Features
 
-- **Express-like API** - Familiar `.insert()`, `.modify()`, `.remove()`, `.use()` methods
+- **Express-like API** - Familiar `.onInsert()`, `.onModify()`, `.onRemove()`, `.use()` methods
 - **Type Safety** - Full TypeScript inference from discriminators and parsers
 - **Flexible Matching** - Use type guards or schema validators (Zod, etc.)
 - **Attribute Filtering** - React to specific attribute changes in MODIFY events
@@ -50,13 +50,13 @@ const isUser = (record: unknown): record is User =>
 const router = new StreamRouter();
 
 router
-  .insert(isUser, async (newUser, ctx) => {
+  .onInsert(isUser, async (newUser, ctx) => {
     console.log(`User created: ${newUser.name}`);
   })
-  .modify(isUser, async (oldUser, newUser, ctx) => {
+  .onModify(isUser, async (oldUser, newUser, ctx) => {
     console.log(`User updated: ${oldUser.name} -> ${newUser.name}`);
   })
-  .remove(isUser, async (deletedUser, ctx) => {
+  .onRemove(isUser, async (deletedUser, ctx) => {
     console.log(`User deleted: ${deletedUser.name}`);
   });
 
@@ -83,7 +83,7 @@ type User = z.infer<typeof UserSchema>;
 const router = new StreamRouter();
 
 // Schema validates and parses data before handler receives it
-router.insert(UserSchema, async (newUser: User, ctx) => {
+router.onInsert(UserSchema, async (newUser: User, ctx) => {
   // newUser is guaranteed to match the schema
   console.log(`Valid user: ${newUser.email}`);
 });
@@ -95,7 +95,7 @@ React only when specific attributes change:
 
 ```typescript
 // Only trigger when email changes
-router.modify(
+router.onModify(
   isUser,
   async (oldUser, newUser, ctx) => {
     await sendEmailVerification(newUser.email);
@@ -104,7 +104,7 @@ router.modify(
 );
 
 // Trigger when tags are added to a collection
-router.modify(
+router.onModify(
   isUser,
   async (oldUser, newUser, ctx) => {
     console.log('New tags added');
@@ -113,7 +113,7 @@ router.modify(
 );
 
 // Multiple change types (OR logic)
-router.modify(
+router.onModify(
   isUser,
   async (oldUser, newUser, ctx) => {
     console.log('Tags modified');
@@ -136,7 +136,7 @@ Process multiple records together:
 
 ```typescript
 // All matching records in one handler call
-router.insert(
+router.onInsert(
   isInventoryChange,
   async (records) => {
     console.log(`Processing ${records.length} changes`);
@@ -148,7 +148,7 @@ router.insert(
 );
 
 // Group by attribute value
-router.insert(
+router.onInsert(
   isAuditLog,
   async (records) => {
     const userId = records[0].newImage.userId;
@@ -158,7 +158,7 @@ router.insert(
 );
 
 // Group by primary key
-router.modify(
+router.onModify(
   isItem,
   async (records) => {
     // All records for the same pk+sk
@@ -214,13 +214,13 @@ const router = new StreamRouter({
 });
 
 // Immediate handler
-router.insert(isOrder, async (order, ctx) => {
+router.onInsert(isOrder, async (order, ctx) => {
   console.log('Order received');
 });
 
 // Deferred handler - enqueues to SQS
 router
-  .insert(isOrder, async (order, ctx) => {
+  .onInsert(isOrder, async (order, ctx) => {
     // This runs when processing from SQS
     await sendConfirmationEmail(order);
     await generateInvoice(order);

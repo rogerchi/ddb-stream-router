@@ -72,10 +72,10 @@ router.use(async (record: DynamoDBRecord, next: () => Promise<void>) => {
 
 // Register handlers after middleware
 router
-	.insert(isUser, async (newUser) => {
+	.onInsert(isUser, async (newUser) => {
 		console.log(`New user: ${newUser.name}`);
 	})
-	.modify(isUser, async (oldUser, newUser) => {
+	.onModify(isUser, async (oldUser, newUser) => {
 		console.log(`User updated: ${oldUser.name} -> ${newUser.name}`);
 	});
 

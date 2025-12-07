@@ -30,7 +30,7 @@ const isUser = (record: unknown): record is User =>
 const router = new StreamRouter();
 
 // Only trigger when email changes
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		console.log(`Email changed: ${oldUser.email} -> ${newUser.email}`);
@@ -40,7 +40,7 @@ router.modify(
 );
 
 // Only trigger when status changes
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		console.log(`Status changed: ${oldUser.status} -> ${newUser.status}`);
@@ -53,7 +53,7 @@ router.modify(
 );
 
 // Trigger when a new attribute is added
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		console.log("New attribute added to user profile");
@@ -62,7 +62,7 @@ router.modify(
 );
 
 // Trigger when an attribute is removed
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		console.log("Attribute removed from user profile");
@@ -71,7 +71,7 @@ router.modify(
 );
 
 // Trigger when items are added to a collection (list/set/map)
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		const newTags = newUser.tags.filter((t) => !oldUser.tags.includes(t));
@@ -81,7 +81,7 @@ router.modify(
 );
 
 // Trigger when items are removed from a collection
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		const removedTags = oldUser.tags.filter((t) => !newUser.tags.includes(t));
@@ -91,7 +91,7 @@ router.modify(
 );
 
 // Trigger on any change to preferences (nested object)
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		console.log("User preferences updated");
@@ -101,7 +101,7 @@ router.modify(
 );
 
 // Multiple change types - triggers on any of them (OR logic)
-router.modify(
+router.onModify(
 	isUser,
 	async (oldUser, newUser, ctx) => {
 		console.log("Tags collection modified");

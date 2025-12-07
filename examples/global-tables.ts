@@ -28,14 +28,14 @@ const router = new StreamRouter({
 });
 
 router
-	.insert(isUser, async (newUser) => {
+	.onInsert(isUser, async (newUser) => {
 		// This handler only runs for records that originated in this region
 		console.log(`New user in ${process.env.AWS_REGION}: ${newUser.name}`);
 
 		// Safe to perform region-specific operations
 		await notifyLocalServices(newUser);
 	})
-	.modify(isUser, async (_oldUser, newUser) => {
+	.onModify(isUser, async (_oldUser, newUser) => {
 		console.log(`User updated in ${process.env.AWS_REGION}: ${newUser.name}`);
 	});
 

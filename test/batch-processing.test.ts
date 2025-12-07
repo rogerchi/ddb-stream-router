@@ -18,7 +18,7 @@ describe("Batch Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("USER#");
 
-			router.insert(isUser, handler, { batch: true });
+			router.onInsert(isUser, handler, { batch: true });
 
 			const records = [
 				createStreamRecord(
@@ -61,7 +61,7 @@ describe("Batch Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("ORDER#");
 
-			router.modify(isOrder, handler, { batch: true });
+			router.onModify(isOrder, handler, { batch: true });
 
 			const records = [
 				createStreamRecord(
@@ -106,7 +106,7 @@ describe("Batch Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("PRODUCT#");
 
-			router.remove(isProduct, handler, { batch: true });
+			router.onRemove(isProduct, handler, { batch: true });
 
 			const records = [
 				createStreamRecord(
@@ -147,7 +147,7 @@ describe("Batch Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("AUDIT#");
 
-			router.insert(isAuditLog, handler, { batch: true, batchKey: "userId" });
+			router.onInsert(isAuditLog, handler, { batch: true, batchKey: "userId" });
 
 			const records = [
 				createStreamRecord(
@@ -192,7 +192,7 @@ describe("Batch Processing", () => {
 			): record is { pk: string; sk: string; data: string } =>
 				typeof record === "object" && record !== null && "pk" in record;
 
-			router.insert(isItem, handler, {
+			router.onInsert(isItem, handler, {
 				batch: true,
 				batchKey: { partitionKey: "pk" },
 			});
@@ -238,7 +238,7 @@ describe("Batch Processing", () => {
 			): record is { pk: string; sk: string; version: number } =>
 				typeof record === "object" && record !== null && "pk" in record;
 
-			router.insert(isItem, handler, {
+			router.onInsert(isItem, handler, {
 				batch: true,
 				batchKey: { partitionKey: "pk", sortKey: "sk" },
 			});
@@ -296,7 +296,7 @@ describe("Batch Processing", () => {
 				typeof record === "object" && record !== null && "timestamp" in record;
 
 			// Group by date (extract date from timestamp)
-			router.insert(isEvent, handler, {
+			router.onInsert(isEvent, handler, {
 				batch: true,
 				batchKey: (record) => {
 					const ts = (record as { timestamp: string }).timestamp;
@@ -350,10 +350,10 @@ describe("Batch Processing", () => {
 				(record as { pk: string }).pk.startsWith("USER#");
 
 			// Batch handler
-			router.insert(isUser, batchHandler, { batch: true });
+			router.onInsert(isUser, batchHandler, { batch: true });
 
 			// Non-batch handler (same discriminator)
-			router.insert(isUser, immediateHandler);
+			router.onInsert(isUser, immediateHandler);
 
 			const records = [
 				createStreamRecord(
@@ -396,8 +396,8 @@ describe("Batch Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("ORDER#");
 
-			router.insert(isUser, userHandler, { batch: true });
-			router.insert(isOrder, orderHandler, { batch: true });
+			router.onInsert(isUser, userHandler, { batch: true });
+			router.onInsert(isOrder, orderHandler, { batch: true });
 
 			const records = [
 				createStreamRecord(

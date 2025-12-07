@@ -48,14 +48,14 @@ const router = new StreamRouter({
 });
 
 // Quick handler - runs immediately during stream processing
-router.insert(isOrder, async (newOrder, ctx) => {
+router.onInsert(isOrder, async (newOrder, ctx) => {
 	console.log(`Order ${newOrder.orderId} received - quick acknowledgment`);
 	// Fast operations only: update counters, simple logging
 });
 
 // Deferred handler - enqueued to SQS for later processing
 router
-	.insert(isOrder, async (newOrder, ctx) => {
+	.onInsert(isOrder, async (newOrder, ctx) => {
 		console.log(`Processing order ${newOrder.orderId} - sending emails, generating PDFs...`);
 		// Heavy operations: send emails, generate invoices, call external APIs
 		await sendOrderConfirmationEmail(newOrder.customerEmail, newOrder.orderId);

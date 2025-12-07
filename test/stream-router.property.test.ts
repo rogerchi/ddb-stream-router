@@ -97,11 +97,11 @@ describe("StreamRouter Handler Registration Properties", () => {
 
 				// Register handler based on event type
 				if (eventType === "INSERT") {
-					router.insert(discriminator, handler);
+					router.onInsert(discriminator, handler);
 				} else if (eventType === "MODIFY") {
-					router.modify(discriminator, handler);
+					router.onModify(discriminator, handler);
 				} else {
-					router.remove(discriminator, handler);
+					router.onRemove(discriminator, handler);
 				}
 
 				// Verify handler is registered with correct event type
@@ -133,8 +133,8 @@ describe("StreamRouter Handler Registration Properties", () => {
 			}),
 		};
 
-		router.insert(discriminator, jest.fn());
-		router.insert(parser, jest.fn());
+		router.onInsert(discriminator, jest.fn());
+		router.onInsert(parser, jest.fn());
 
 		expect(router.handlers[0].isParser).toBe(false);
 		expect(router.handlers[1].isParser).toBe(true);
@@ -148,9 +148,9 @@ describe("StreamRouter Handler Registration Properties", () => {
 
 		// Chaining through HandlerRegistration proxy methods
 		router
-			.insert(discriminator, handler)
-			.modify(discriminator, handler)
-			.remove(discriminator, handler);
+			.onInsert(discriminator, handler)
+			.onModify(discriminator, handler)
+			.onRemove(discriminator, handler);
 
 		expect(router.handlers).toHaveLength(3);
 	});
@@ -288,11 +288,11 @@ describe("StreamRouter Event Processing Properties", () => {
 						typeof record === "object" && record !== null && "id" in record;
 
 					if (eventType === "INSERT") {
-						router.insert(discriminator, handler);
+						router.onInsert(discriminator, handler);
 					} else if (eventType === "MODIFY") {
-						router.modify(discriminator, handler);
+						router.onModify(discriminator, handler);
 					} else {
-						router.remove(discriminator, handler);
+						router.onRemove(discriminator, handler);
 					}
 
 					const newImage = eventType !== "REMOVE" ? { id } : undefined;
@@ -327,7 +327,7 @@ describe("StreamRouter Event Processing Properties", () => {
 			},
 		};
 
-		router.insert(parser, handler);
+		router.onInsert(parser, handler);
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -358,7 +358,7 @@ describe("StreamRouter Event Processing Properties", () => {
 			}),
 		};
 
-		router.insert(parser, handler);
+		router.onInsert(parser, handler);
 
 		const record = createMockRecord("INSERT", { notId: "test" });
 		const event = createMockEvent([record]);
@@ -402,13 +402,13 @@ describe("StreamRouter Event Processing Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, () => {
+		router.onInsert(discriminator, () => {
 			executionOrder.push(1);
 		});
-		router.insert(discriminator, () => {
+		router.onInsert(discriminator, () => {
 			executionOrder.push(2);
 		});
-		router.insert(discriminator, () => {
+		router.onInsert(discriminator, () => {
 			executionOrder.push(3);
 		});
 
@@ -434,7 +434,7 @@ describe("StreamRouter Event Processing Properties", () => {
 			record !== null &&
 			"specificField" in record;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		const record = createMockRecord("INSERT", { differentField: "value" });
 		const event = createMockEvent([record]);
@@ -456,7 +456,7 @@ describe("StreamRouter Event Processing Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, () => {
+		router.onInsert(discriminator, () => {
 			callCount++;
 			if (callCount === 2) throw new Error("Intentional error");
 		});
@@ -487,7 +487,7 @@ describe("StreamRouter Stream View Type Properties", () => {
 		const handler = jest.fn();
 		const discriminator = (_record: unknown): _record is { pk: string } => true;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		const record = createMockRecord("INSERT", { id: "test" }, undefined, {
 			pk: "key1",
@@ -508,7 +508,7 @@ describe("StreamRouter Stream View Type Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		const record = createMockRecord("INSERT", { id: "newValue" });
 		const event = createMockEvent([record]);
@@ -533,7 +533,7 @@ describe("StreamRouter Unmarshalling Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -560,7 +560,7 @@ describe("StreamRouter Unmarshalling Properties", () => {
 			_record: unknown,
 		): _record is Record<string, unknown> => true;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -596,7 +596,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const handler = jest.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		// Record from us-east-1, but Lambda is in us-west-2
 		const record: DynamoDBRecord = {
@@ -627,7 +627,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const handler = jest.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		// Record from us-east-1, Lambda is also in us-east-1
 		const record: DynamoDBRecord = {
@@ -657,7 +657,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const handler = jest.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		// Record from different region, but sameRegionOnly is false
 		const record: DynamoDBRecord = {
@@ -683,7 +683,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 		const handler = jest.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
-		router.insert(discriminator, handler);
+		router.onInsert(discriminator, handler);
 
 		const record: DynamoDBRecord = {
 			eventID: "test",
@@ -1040,7 +1040,7 @@ describe("Multiple Attribute Filter Properties", () => {
 					): _record is Record<string, unknown> => true;
 
 					// Register handler with multiple change types (OR logic)
-					router.modify(discriminator, handler, {
+					router.onModify(discriminator, handler, {
 						attribute: attrName,
 						changeType: ["new_attribute", "changed_attribute"],
 					});
@@ -1082,7 +1082,7 @@ describe("Multiple Attribute Filter Properties", () => {
 		): _record is Record<string, unknown> => true;
 
 		// Register handler looking for changes to "targetAttr"
-		router.modify(discriminator, handler, {
+		router.onModify(discriminator, handler, {
 			attribute: "targetAttr",
 			changeType: ["new_attribute", "changed_attribute"],
 		});
@@ -1133,7 +1133,7 @@ describe("Batch Processing Properties", () => {
 				const discriminator = (record: unknown): record is { id: string } =>
 					typeof record === "object" && record !== null && "id" in record;
 
-				router.insert(discriminator, handler, { batch: true });
+				router.onInsert(discriminator, handler, { batch: true });
 
 				const records = Array.from({ length: recordCount }, (_, i) =>
 					createMockRecord("INSERT", { id: `item_${i}` }),
@@ -1162,7 +1162,7 @@ describe("Batch Processing Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler, { batch: true });
+		router.onInsert(discriminator, handler, { batch: true });
 
 		const record = createMockRecord("INSERT", { id: "single" });
 		const event = createMockEvent([record]);
@@ -1184,7 +1184,7 @@ describe("Batch Processing Properties", () => {
 			"type" in record &&
 			(record as { type: string }).type === "target";
 
-		router.insert(discriminator, handler, { batch: true });
+		router.onInsert(discriminator, handler, { batch: true });
 
 		const records = [
 			createMockRecord("INSERT", { type: "target", id: "1" }),
@@ -1223,7 +1223,7 @@ describe("Batch Processing Properties", () => {
 						record !== null &&
 						"groupId" in record;
 
-					router.insert(discriminator, handler, {
+					router.onInsert(discriminator, handler, {
 						batch: true,
 						batchKey: "groupId",
 					});
@@ -1269,7 +1269,7 @@ describe("Batch Processing Properties", () => {
 			typeof record === "object" && record !== null && "category" in record;
 
 		// Use a function to extract the batch key
-		router.insert(discriminator, handler, {
+		router.onInsert(discriminator, handler, {
 			batch: true,
 			batchKey: (record: unknown) =>
 				(record as { category: string }).category.toUpperCase(),
@@ -1302,7 +1302,7 @@ describe("Batch Processing Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 
 		// batch: true but no batchKey - all records in one group
-		router.insert(discriminator, handler, { batch: true });
+		router.onInsert(discriminator, handler, { batch: true });
 
 		const records = [
 			createMockRecord("INSERT", { id: "1", category: "a" }),
@@ -1326,7 +1326,7 @@ describe("Batch Processing Properties", () => {
 		): record is { pk: string; sk: string; data: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
 
-		router.insert(discriminator, handler, {
+		router.onInsert(discriminator, handler, {
 			batch: true,
 			batchKey: { partitionKey: "pk" },
 		});
@@ -1359,7 +1359,7 @@ describe("Batch Processing Properties", () => {
 		): record is { pk: string; sk: string; version: number } =>
 			typeof record === "object" && record !== null && "pk" in record;
 
-		router.insert(discriminator, handler, {
+		router.onInsert(discriminator, handler, {
 			batch: true,
 			batchKey: { partitionKey: "pk", sortKey: "sk" },
 		});
@@ -1394,7 +1394,7 @@ describe("Batch Processing Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.modify(discriminator, handler, { batch: true });
+		router.onModify(discriminator, handler, { batch: true });
 
 		const records = [
 			createMockRecord(
@@ -1426,7 +1426,7 @@ describe("Batch Processing Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.remove(discriminator, handler, { batch: true });
+		router.onRemove(discriminator, handler, { batch: true });
 
 		const records = [
 			createMockRecord("REMOVE", undefined, { id: "1" }),
@@ -1450,12 +1450,12 @@ describe("Batch Processing Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 
 		// Non-batch handler
-		router.insert(discriminator, (newImage) => {
+		router.onInsert(discriminator, (newImage) => {
 			executionOrder.push(`immediate_${(newImage as { id: string }).id}`);
 		});
 
 		// Batch handler
-		router.insert(
+		router.onInsert(
 			discriminator,
 			(records: unknown) => {
 				executionOrder.push(
@@ -1536,7 +1536,7 @@ describe("Batch Item Failures Properties", () => {
 					const discriminator = (record: unknown): record is { id: string } =>
 						typeof record === "object" && record !== null && "id" in record;
 
-					router.insert(discriminator, () => {
+					router.onInsert(discriminator, () => {
 						if (callCount === actualFailIndex) {
 							callCount++;
 							throw new Error("Intentional failure");
@@ -1581,7 +1581,7 @@ describe("Batch Item Failures Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 
 		// Fail on records 1 and 3
-		router.insert(discriminator, () => {
+		router.onInsert(discriminator, () => {
 			if (callCount === 1 || callCount === 3) {
 				callCount++;
 				throw new Error("Intentional failure");
@@ -1625,7 +1625,7 @@ describe("Batch Item Failures Properties", () => {
 				const discriminator = (record: unknown): record is { id: string } =>
 					typeof record === "object" && record !== null && "id" in record;
 
-				router.insert(discriminator, () => {
+				router.onInsert(discriminator, () => {
 					// Handler succeeds
 				});
 
@@ -1658,7 +1658,7 @@ describe("Batch Item Failures Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, () => {
+		router.onInsert(discriminator, () => {
 			throw new Error("Intentional failure");
 		});
 
@@ -1717,7 +1717,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler).defer();
+		router.onInsert(discriminator, handler).defer();
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -1751,7 +1751,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		const registration = router.insert(discriminator, handler);
+		const registration = router.onInsert(discriminator, handler);
 		registration.defer();
 
 		// Get the handler ID from the router
@@ -1793,7 +1793,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler).defer({
+		router.onInsert(discriminator, handler).defer({
 			queue: "https://sqs.us-east-1.amazonaws.com/123456789/custom-queue",
 		});
 
@@ -1822,7 +1822,7 @@ describe("Defer Functionality Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 
 		expect(() => {
-			router.insert(discriminator, handler).defer();
+			router.onInsert(discriminator, handler).defer();
 		}).toThrow(ConfigurationError);
 	});
 
@@ -1843,7 +1843,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler).defer();
+		router.onInsert(discriminator, handler).defer();
 
 		const handlerId = router.handlers[0].id;
 
@@ -1868,7 +1868,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.insert(discriminator, handler).defer({ delaySeconds: 30 });
+		router.onInsert(discriminator, handler).defer({ delaySeconds: 30 });
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -1890,8 +1890,8 @@ describe("Defer Functionality Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 
 		// Register both immediate and deferred handlers
-		router.insert(discriminator, immediateHandler);
-		router.insert(discriminator, deferredHandler).defer();
+		router.onInsert(discriminator, immediateHandler);
+		router.onInsert(discriminator, deferredHandler).defer();
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);

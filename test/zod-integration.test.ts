@@ -17,7 +17,7 @@ describe("Zod Schema Integration", () => {
 			email: z.string().email(),
 		});
 
-		router.insert(UserSchema, handler);
+		router.onInsert(UserSchema, handler);
 
 		const newItem = {
 			pk: "user#1",
@@ -56,7 +56,7 @@ describe("Zod Schema Integration", () => {
 			email: z.string().email(), // Requires valid email
 		});
 
-		router.insert(UserSchema, handler);
+		router.onInsert(UserSchema, handler);
 
 		// Invalid email format
 		const newItem = {
@@ -93,7 +93,7 @@ describe("Zod Schema Integration", () => {
 			total: z.number(),
 		});
 
-		router.modify(OrderSchema, handler);
+		router.onModify(OrderSchema, handler);
 
 		const oldItem = {
 			pk: "order#1",
@@ -137,7 +137,7 @@ describe("Zod Schema Integration", () => {
 			price: z.number().positive(),
 		});
 
-		router.remove(ProductSchema, handler);
+		router.onRemove(ProductSchema, handler);
 
 		const oldItem = {
 			pk: "product#1",
@@ -184,8 +184,8 @@ describe("Zod Schema Integration", () => {
 			orderId: z.string(),
 		});
 
-		router.insert(UserSchema, userHandler);
-		router.insert(OrderSchema, orderHandler);
+		router.onInsert(UserSchema, userHandler);
+		router.onInsert(OrderSchema, orderHandler);
 
 		// User record
 		const userRecord = createStreamRecord(

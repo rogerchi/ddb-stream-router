@@ -51,7 +51,7 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.insert(isUser, handler).defer();
+			router.onInsert(isUser, handler).defer();
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -97,7 +97,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.modify(isAny, handler).defer();
+			router.onModify(isAny, handler).defer();
 
 			const record = createStreamRecord(
 				"MODIFY",
@@ -134,7 +134,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.remove(isAny, handler).defer();
+			router.onRemove(isAny, handler).defer();
 
 			const record = createStreamRecord(
 				"REMOVE",
@@ -172,7 +172,7 @@ describe("Deferred Processing with SQS", () => {
 				typeof record === "object" && record !== null;
 
 			// Override with custom queue
-			router.insert(isAny, handler).defer({
+			router.onInsert(isAny, handler).defer({
 				queue: "https://sqs.us-east-1.amazonaws.com/123456789012/custom-queue",
 			});
 
@@ -206,7 +206,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.insert(isAny, handler).defer({ delaySeconds: 60 });
+			router.onInsert(isAny, handler).defer({ delaySeconds: 60 });
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -244,8 +244,8 @@ describe("Deferred Processing with SQS", () => {
 			const hasName = (record: unknown): record is { name: string } =>
 				typeof record === "object" && record !== null && "name" in record;
 
-			router.insert(isUser, handler1).defer();
-			router.insert(hasName, handler2).defer();
+			router.onInsert(isUser, handler1).defer();
+			router.onInsert(hasName, handler2).defer();
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -296,8 +296,8 @@ describe("Deferred Processing with SQS", () => {
 			const hasName = (record: unknown): record is { name: string } =>
 				typeof record === "object" && record !== null && "name" in record;
 
-			router.insert(isUser, deferredHandler).defer();
-			router.insert(hasName, immediateHandler); // Not deferred
+			router.onInsert(isUser, deferredHandler).defer();
+			router.onInsert(hasName, immediateHandler); // Not deferred
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -336,7 +336,7 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.insert(isUser, handler).defer();
+			router.onInsert(isUser, handler).defer();
 
 			// Get the handler ID from the router
 			const handlerId = router.handlers[0].id;
@@ -384,7 +384,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.insert(isAny, handler).defer();
+			router.onInsert(isAny, handler).defer();
 
 			const handlerId = router.handlers[0].id;
 
@@ -438,7 +438,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.insert(isAny, handler).defer();
+			router.onInsert(isAny, handler).defer();
 
 			const handlerId = router.handlers[0].id;
 
@@ -483,7 +483,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.insert(isAny, handler).defer();
+			router.onInsert(isAny, handler).defer();
 
 			const handlerId = router.handlers[0].id;
 
@@ -546,7 +546,7 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("USER#");
 
-			router.insert(isUser, handler, { batch: true }).defer();
+			router.onInsert(isUser, handler, { batch: true }).defer();
 
 			const handlerId = router.handlers[0].id;
 
@@ -604,7 +604,7 @@ describe("Deferred Processing with SQS", () => {
 				(record as { pk: string }).pk.startsWith("AUDIT#");
 
 			router
-				.insert(isAudit, handler, { batch: true, batchKey: "userId" })
+				.onInsert(isAudit, handler, { batch: true, batchKey: "userId" })
 				.defer();
 
 			const handlerId = router.handlers[0].id;
@@ -671,7 +671,7 @@ describe("Deferred Processing with SQS", () => {
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" && record !== null && "pk" in record;
 
-			router.insert(isUser, handler, { batch: true }).defer();
+			router.onInsert(isUser, handler, { batch: true }).defer();
 
 			const handlerId = router.handlers[0].id;
 
@@ -736,8 +736,8 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("ORDER#");
 
-			router.insert(isUser, batchHandler, { batch: true }).defer();
-			router.insert(isOrder, nonBatchHandler).defer();
+			router.onInsert(isUser, batchHandler, { batch: true }).defer();
+			router.onInsert(isOrder, nonBatchHandler).defer();
 
 			const userHandlerId = router.handlers[0].id;
 			const orderHandlerId = router.handlers[1].id;

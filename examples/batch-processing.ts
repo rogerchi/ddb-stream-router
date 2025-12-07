@@ -43,7 +43,7 @@ const router = new StreamRouter();
 
 // Batch all inventory changes together (no grouping key)
 // All matching records in the batch are passed to the handler at once
-router.insert(
+router.onInsert(
 	isInventoryChange,
 	async (records) => {
 		console.log(`Processing ${records.length} inventory changes in batch`);
@@ -63,7 +63,7 @@ router.insert(
 
 // Batch audit logs by user ID (simple string attribute)
 // Records are grouped by the userId attribute before handler is called
-router.insert(
+router.onInsert(
 	isAuditLog,
 	async (records) => {
 		const userId = records[0].newImage.userId;
@@ -80,7 +80,7 @@ router.insert(
 
 // Group by primary key (partition key + sort key)
 // This groups all changes to the same DynamoDB item together
-router.modify(
+router.onModify(
 	isInventoryChange,
 	async (records) => {
 		// All records in this batch are for the same pk+sk (same item)
@@ -100,7 +100,7 @@ router.modify(
 
 // Group by partition key only (all items with same pk)
 // Useful when you want to process all items in a partition together
-router.remove(
+router.onRemove(
 	isInventoryChange,
 	async (records) => {
 		const warehouseId = records[0].oldImage.warehouseId;

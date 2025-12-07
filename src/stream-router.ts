@@ -86,68 +86,68 @@ export class HandlerRegistration<
 	}
 
 	// Proxy methods to continue chaining
-	insert<T>(
+	onInsert<T>(
 		matcher: Matcher<T>,
 		handler: BatchInsertHandler<T, V>,
 		options: BatchHandlerOptions,
 	): HandlerRegistration<V>;
-	insert<T>(
+	onInsert<T>(
 		matcher: Matcher<T>,
 		handler: InsertHandler<T, V>,
 		options?: HandlerOptions,
 	): HandlerRegistration<V>;
-	insert<T>(
+	onInsert<T>(
 		matcher: Matcher<T>,
 		handler: InsertHandler<T, V> | BatchInsertHandler<T, V>,
 		options?: HandlerOptions | BatchHandlerOptions,
 	): HandlerRegistration<V> {
-		return this.router.insert(
+		return this.router.onInsert(
 			matcher,
 			handler as InsertHandler<T, V>,
 			options as HandlerOptions,
 		);
 	}
 
-	modify<T>(
+	onModify<T>(
 		matcher: Matcher<T>,
 		handler: BatchModifyHandler<T, V>,
 		options: BatchHandlerOptions & ModifyHandlerOptions,
 	): HandlerRegistration<V>;
-	modify<T>(
+	onModify<T>(
 		matcher: Matcher<T>,
 		handler: ModifyHandler<T, V>,
 		options?: ModifyHandlerOptions,
 	): HandlerRegistration<V>;
-	modify<T>(
+	onModify<T>(
 		matcher: Matcher<T>,
 		handler: ModifyHandler<T, V> | BatchModifyHandler<T, V>,
 		options?:
 			| ModifyHandlerOptions
 			| (BatchHandlerOptions & ModifyHandlerOptions),
 	): HandlerRegistration<V> {
-		return this.router.modify(
+		return this.router.onModify(
 			matcher,
 			handler as ModifyHandler<T, V>,
 			options as ModifyHandlerOptions,
 		);
 	}
 
-	remove<T>(
+	onRemove<T>(
 		matcher: Matcher<T>,
 		handler: BatchRemoveHandler<T, V>,
 		options: BatchHandlerOptions,
 	): HandlerRegistration<V>;
-	remove<T>(
+	onRemove<T>(
 		matcher: Matcher<T>,
 		handler: RemoveHandler<T, V>,
 		options?: HandlerOptions,
 	): HandlerRegistration<V>;
-	remove<T>(
+	onRemove<T>(
 		matcher: Matcher<T>,
 		handler: RemoveHandler<T, V> | BatchRemoveHandler<T, V>,
 		options?: HandlerOptions | BatchHandlerOptions,
 	): HandlerRegistration<V> {
-		return this.router.remove(
+		return this.router.onRemove(
 			matcher,
 			handler as RemoveHandler<T, V>,
 			options as HandlerOptions,
@@ -258,7 +258,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Register a handler for INSERT events.
 	 * @overload Batch mode - handler receives array of records
 	 */
-	insert<T>(
+	onInsert<T>(
 		matcher: Matcher<T>,
 		handler: BatchInsertHandler<T, V>,
 		options: BatchHandlerOptions,
@@ -267,12 +267,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Register a handler for INSERT events.
 	 * @overload Standard mode - handler receives single record
 	 */
-	insert<T>(
+	onInsert<T>(
 		matcher: Matcher<T>,
 		handler: InsertHandler<T, V>,
 		options?: HandlerOptions,
 	): HandlerRegistration<V>;
-	insert<T>(
+	onInsert<T>(
 		matcher: Matcher<T>,
 		handler: InsertHandler<T, V> | BatchInsertHandler<T, V>,
 		options?: HandlerOptions | BatchHandlerOptions,
@@ -294,7 +294,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Register a handler for MODIFY events.
 	 * @overload Batch mode - handler receives array of records
 	 */
-	modify<T>(
+	onModify<T>(
 		matcher: Matcher<T>,
 		handler: BatchModifyHandler<T, V>,
 		options: BatchHandlerOptions & ModifyHandlerOptions,
@@ -303,12 +303,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Register a handler for MODIFY events.
 	 * @overload Standard mode - handler receives single record
 	 */
-	modify<T>(
+	onModify<T>(
 		matcher: Matcher<T>,
 		handler: ModifyHandler<T, V>,
 		options?: ModifyHandlerOptions,
 	): HandlerRegistration<V>;
-	modify<T>(
+	onModify<T>(
 		matcher: Matcher<T>,
 		handler: ModifyHandler<T, V> | BatchModifyHandler<T, V>,
 		options?:
@@ -332,7 +332,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Register a handler for REMOVE events.
 	 * @overload Batch mode - handler receives array of records
 	 */
-	remove<T>(
+	onRemove<T>(
 		matcher: Matcher<T>,
 		handler: BatchRemoveHandler<T, V>,
 		options: BatchHandlerOptions,
@@ -341,12 +341,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	 * Register a handler for REMOVE events.
 	 * @overload Standard mode - handler receives single record
 	 */
-	remove<T>(
+	onRemove<T>(
 		matcher: Matcher<T>,
 		handler: RemoveHandler<T, V>,
 		options?: HandlerOptions,
 	): HandlerRegistration<V>;
-	remove<T>(
+	onRemove<T>(
 		matcher: Matcher<T>,
 		handler: RemoveHandler<T, V> | BatchRemoveHandler<T, V>,
 		options?: HandlerOptions | BatchHandlerOptions,

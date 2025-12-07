@@ -17,7 +17,7 @@ describe("Event Processing", () => {
 				typeof (record as { pk: unknown }).pk === "string" &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.insert(isUser, handler);
+			router.onInsert(isUser, handler);
 
 			const newItem = { pk: "user#1", sk: "profile", name: "Test User" };
 			const record = createStreamRecord(
@@ -61,7 +61,7 @@ describe("Event Processing", () => {
 				},
 			};
 
-			router.insert(userParser, handler);
+			router.onInsert(userParser, handler);
 
 			const newItem = { pk: "user#1", sk: "profile", name: "Test User" };
 			const record = createStreamRecord(
@@ -94,7 +94,7 @@ describe("Event Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.modify(isUser, handler, {
+			router.onModify(isUser, handler, {
 				attribute: "name",
 				changeType: "changed_attribute",
 			});
@@ -126,7 +126,7 @@ describe("Event Processing", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.modify(isAny, handler);
+			router.onModify(isAny, handler);
 
 			const oldItem = { pk: "item#1", sk: "data", value: 10 };
 			const newItem = { pk: "item#1", sk: "data", value: 20 };
@@ -160,7 +160,7 @@ describe("Event Processing", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.remove(isUser, handler);
+			router.onRemove(isUser, handler);
 
 			const oldItem = { pk: "user#1", sk: "profile", name: "Deleted User" };
 			const record = createStreamRecord(
@@ -201,8 +201,8 @@ describe("Event Processing", () => {
 				"role" in record &&
 				(record as { role: string }).role === "admin";
 
-			router.insert(isUser, handler1);
-			router.insert(isAdmin, handler2);
+			router.onInsert(isUser, handler1);
+			router.onInsert(isAdmin, handler2);
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -226,9 +226,9 @@ describe("Event Processing", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.insert(isAny, insertHandler);
-			router.modify(isAny, modifyHandler);
-			router.remove(isAny, removeHandler);
+			router.onInsert(isAny, insertHandler);
+			router.onModify(isAny, modifyHandler);
+			router.onRemove(isAny, removeHandler);
 
 			const records = [
 				createStreamRecord(
@@ -267,7 +267,7 @@ describe("Event Processing", () => {
 			const isAny = (_record: unknown): _record is Record<string, unknown> =>
 				true;
 
-			router.insert(isAny, handler);
+			router.onInsert(isAny, handler);
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -290,7 +290,7 @@ describe("Event Processing", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.insert(isAny, handler);
+			router.onInsert(isAny, handler);
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -313,7 +313,7 @@ describe("Event Processing", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.remove(isAny, handler);
+			router.onRemove(isAny, handler);
 
 			const record = createStreamRecord(
 				"REMOVE",
@@ -339,7 +339,7 @@ describe("Event Processing", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.modify(isAny, handler);
+			router.onModify(isAny, handler);
 
 			const record = createStreamRecord(
 				"MODIFY",
