@@ -387,17 +387,24 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 	/**
 	 * Executes the middleware chain for a record.
+	 * Returns true if the chain completed (all middleware called next()), false otherwise.
 	 */
 	private async executeMiddleware(
 		record: DynamoDBRecord,
 		index: number,
-	): Promise<void> {
+	): Promise<boolean> {
 		if (index >= this._middleware.length) {
-			return;
+			return true; // Chain completed
 		}
 
 		const middleware = this._middleware[index];
-		await middleware(record, () => this.executeMiddleware(record, index + 1));
+		let chainCompleted = false;
+
+		await middleware(record, async () => {
+			chainCompleted = await this.executeMiddleware(record, index + 1);
+		});
+
+		return chainCompleted;
 	}
 
 	/**
@@ -735,8 +742,12 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					continue;
 				}
 
-				// Execute middleware chain
-				await this.executeMiddleware(record, 0);
+				// Execute middleware chain - if middleware doesn't call next(), skip handlers
+				const middlewareCompleted = await this.executeMiddleware(record, 0);
+				if (!middlewareCompleted) {
+					result.succeeded++;
+					continue;
+				}
 
 				const eventType = record.eventName as "INSERT" | "MODIFY" | "REMOVE";
 				const ctx = this.buildContext(record);

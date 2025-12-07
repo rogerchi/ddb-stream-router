@@ -48,12 +48,13 @@ router.use(async (record: DynamoDBRecord, next: () => Promise<void>) => {
 	}
 });
 
-// Filtering middleware - skip records from certain sources
+// Filtering middleware - skip processing for certain records
+// Not calling next() stops the middleware chain AND skips handlers
 router.use(async (record: DynamoDBRecord, next: () => Promise<void>) => {
-	// Skip records from test tables
+	// Skip test table records entirely
 	if (record.eventSourceARN?.includes("test-table")) {
-		console.log("Skipping test table record");
-		return; // Don't call next() to skip processing
+		console.log("Test table record - skipping processing");
+		return; // Stops middleware chain AND skips handlers
 	}
 
 	await next();
