@@ -1,7 +1,16 @@
 import { ConfigurationError } from "./errors";
 import type {
+	BatchHandlerOptions,
+	HandlerFunction,
+	HandlerOptions,
+	InsertHandler,
+	Matcher,
 	MiddlewareFunction,
+	ModifyHandler,
+	ModifyHandlerOptions,
+	Parser,
 	RegisteredHandler,
+	RemoveHandler,
 	StreamRouterOptions,
 	StreamViewType,
 } from "./types";
@@ -79,5 +88,84 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 		const recordRegion = arnParts[3];
 		return recordRegion === lambdaRegion;
+	}
+
+	/**
+	 * Detects if a matcher is a parser (has safeParse method) or a discriminator function.
+	 */
+	private isParser<T>(matcher: Matcher<T>): matcher is Parser<T> {
+		return (
+			typeof matcher === "object" &&
+			matcher !== null &&
+			"safeParse" in matcher &&
+			typeof matcher.safeParse === "function"
+		);
+	}
+
+	/**
+	 * Generates a unique handler ID.
+	 */
+	private generateHandlerId(): string {
+		return `handler_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+	}
+
+	/**
+	 * Register a handler for INSERT events.
+	 */
+	insert<T>(
+		matcher: Matcher<T>,
+		handler: InsertHandler<T, V>,
+		options?: HandlerOptions | BatchHandlerOptions,
+	): this {
+		const registration: RegisteredHandler<T> = {
+			id: this.generateHandlerId(),
+			eventType: "INSERT",
+			matcher,
+			handler: handler as HandlerFunction,
+			options: options ?? {},
+			isParser: this.isParser(matcher),
+		};
+		this._handlers.push(registration as RegisteredHandler);
+		return this;
+	}
+
+	/**
+	 * Register a handler for MODIFY events.
+	 */
+	modify<T>(
+		matcher: Matcher<T>,
+		handler: ModifyHandler<T, V>,
+		options?: ModifyHandlerOptions | (BatchHandlerOptions & ModifyHandlerOptions),
+	): this {
+		const registration: RegisteredHandler<T> = {
+			id: this.generateHandlerId(),
+			eventType: "MODIFY",
+			matcher,
+			handler: handler as HandlerFunction,
+			options: options ?? {},
+			isParser: this.isParser(matcher),
+		};
+		this._handlers.push(registration as RegisteredHandler);
+		return this;
+	}
+
+	/**
+	 * Register a handler for REMOVE events.
+	 */
+	remove<T>(
+		matcher: Matcher<T>,
+		handler: RemoveHandler<T, V>,
+		options?: HandlerOptions | BatchHandlerOptions,
+	): this {
+		const registration: RegisteredHandler<T> = {
+			id: this.generateHandlerId(),
+			eventType: "REMOVE",
+			matcher,
+			handler: handler as HandlerFunction,
+			options: options ?? {},
+			isParser: this.isParser(matcher),
+		};
+		this._handlers.push(registration as RegisteredHandler);
+		return this;
 	}
 }

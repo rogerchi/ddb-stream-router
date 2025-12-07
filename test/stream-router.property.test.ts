@@ -72,3 +72,87 @@ describe("StreamRouter Configuration Properties", () => {
 		expect(router.unmarshall).toBe(true);
 	});
 });
+
+
+describe("StreamRouter Handler Registration Properties", () => {
+	/**
+	 * **Feature: dynamodb-stream-router, Property 3: Handler registration preserves handler across all event types**
+	 * **Validates: Requirements 2.1, 3.1, 4.1**
+	 *
+	 * For any event type (INSERT, MODIFY, REMOVE), matcher function, and handler function,
+	 * when the corresponding registration method is called, the handler should be stored
+	 * in the registry with the correct event type association.
+	 */
+	test("Property 3: Handler registration preserves handler across all event types", () => {
+		const eventTypes = ["INSERT", "MODIFY", "REMOVE"] as const;
+
+		fc.assert(
+			fc.property(
+				fc.constantFrom(...eventTypes),
+				(eventType) => {
+					const router = new StreamRouter();
+					const discriminator = (record: unknown): record is { id: string } =>
+						typeof record === "object" &&
+						record !== null &&
+						"id" in record &&
+						typeof (record as { id: unknown }).id === "string";
+					const handler = jest.fn();
+
+					// Register handler based on event type
+					if (eventType === "INSERT") {
+						router.insert(discriminator, handler);
+					} else if (eventType === "MODIFY") {
+						router.modify(discriminator, handler);
+					} else {
+						router.remove(discriminator, handler);
+					}
+
+					// Verify handler is registered with correct event type
+					expect(router.handlers).toHaveLength(1);
+					expect(router.handlers[0].eventType).toBe(eventType);
+					expect(router.handlers[0].matcher).toBe(discriminator);
+					expect(router.handlers[0].handler).toBe(handler);
+					expect(router.handlers[0].isParser).toBe(false);
+
+					return true;
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+
+	test("Parser detection correctly identifies parser vs discriminator", () => {
+		const router = new StreamRouter();
+
+		// Discriminator function
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		// Parser object (Zod-like)
+		const parser = {
+			parse: (data: unknown) => data as { id: string },
+			safeParse: (data: unknown) => ({ success: true as const, data: data as { id: string } }),
+		};
+
+		router.insert(discriminator, jest.fn());
+		router.insert(parser, jest.fn());
+
+		expect(router.handlers[0].isParser).toBe(false);
+		expect(router.handlers[1].isParser).toBe(true);
+	});
+
+	test("Method chaining works for all registration methods", () => {
+		const router = new StreamRouter();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+		const handler = jest.fn();
+
+		const result = router
+			.insert(discriminator, handler)
+			.modify(discriminator, handler)
+			.remove(discriminator, handler);
+
+		expect(result).toBe(router);
+		expect(router.handlers).toHaveLength(3);
+	});
+});
