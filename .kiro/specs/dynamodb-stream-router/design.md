@@ -11,6 +11,48 @@ Key design goals:
 - **Stream View Awareness**: Handler signatures adapt based on configured stream view type
 - **Attribute-Level Detection**: Granular change detection for MODIFY events
 - **Middleware Support**: Intercept and process records before handlers
+- **Declarative Deferral**: Chain `.defer()` to automatically enqueue from streams, execute from SQS
+
+## Usage Example
+
+```typescript
+import { StreamRouter } from 'ddb-stream-router';
+import { z } from 'zod';
+
+const userSchema = z.object({ id: z.string(), email: z.string() });
+const orderSchema = z.object({ orderId: z.string(), userId: z.string(), total: z.number() });
+
+const router = new StreamRouter({
+  deferQueue: 'https://sqs.us-east-1.amazonaws.com/123456789/defer-queue'
+});
+
+// Immediate handler - runs directly from stream
+router.insert(
+  userSchema,
+  async (newUser, ctx) => {
+    console.log('User created:', newUser.id);
+  }
+);
+
+// Deferred handler - enqueues from stream, executes from SQS
+router.insert(
+  orderSchema,
+  async (newOrder, ctx) => {
+    // This code only runs when processing from SQS
+    await processPayment(newOrder);
+    await sendConfirmationEmail(newOrder);
+  }
+).defer({ delaySeconds: 30 });
+
+// Lambda handlers
+export const streamHandler = async (event: DynamoDBStreamEvent) => {
+  return router.process(event, { reportBatchItemFailures: true });
+};
+
+export const sqsHandler = async (event: SQSEvent) => {
+  return router.processDeferred(event);
+};
+```
 
 ## Architecture
 
@@ -105,7 +147,12 @@ interface ModifyHandlerOptions {
 // Generic handler options
 interface HandlerOptions {
   batch?: boolean;  // When true, handler receives all matching records as array
-  deferQueue?: string;  // SQS queue URL for deferred processing (overrides router-level)
+}
+
+// Defer options for .defer() chain method
+interface DeferOptions {
+  queue?: string;  // SQS queue URL (overrides router-level deferQueue)
+  delaySeconds?: number;  // SQS message delay (0-900 seconds)
 }
 
 // Batch handler options with grouping key
@@ -192,7 +239,6 @@ interface HandlerContext {
   eventID?: string;
   eventSourceARN?: string;
   sequenceNumber?: string;
-  defer: () => Promise<void>;  // Enqueue record to defer queue for later processing
 }
 
 // Handler signatures per stream view type
@@ -269,15 +315,15 @@ This provides flexibility for advanced use cases:
 class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
   constructor(options?: StreamRouterOptions);
   
-  // Handler registration methods (single record)
-  insert<T>(matcher: Matcher<T>, handler: InsertHandler<T, V>, options?: HandlerOptions): this;
-  modify<T>(matcher: Matcher<T>, handler: ModifyHandler<T, V>, options?: ModifyHandlerOptions): this;
-  remove<T>(matcher: Matcher<T>, handler: RemoveHandler<T, V>, options?: HandlerOptions): this;
+  // Handler registration methods return HandlerRegistration for chaining
+  insert<T>(matcher: Matcher<T>, handler: InsertHandler<T, V>, options?: HandlerOptions): HandlerRegistration;
+  modify<T>(matcher: Matcher<T>, handler: ModifyHandler<T, V>, options?: ModifyHandlerOptions): HandlerRegistration;
+  remove<T>(matcher: Matcher<T>, handler: RemoveHandler<T, V>, options?: HandlerOptions): HandlerRegistration;
   
   // Handler registration methods (batch mode)
-  insert<T>(matcher: Matcher<T>, handler: BatchInsertHandler<T, V>, options: BatchHandlerOptions): this;
-  modify<T>(matcher: Matcher<T>, handler: BatchModifyHandler<T, V>, options: BatchHandlerOptions & ModifyHandlerOptions): this;
-  remove<T>(matcher: Matcher<T>, handler: BatchRemoveHandler<T, V>, options: BatchHandlerOptions): this;
+  insert<T>(matcher: Matcher<T>, handler: BatchInsertHandler<T, V>, options: BatchHandlerOptions): HandlerRegistration;
+  modify<T>(matcher: Matcher<T>, handler: BatchModifyHandler<T, V>, options: BatchHandlerOptions & ModifyHandlerOptions): HandlerRegistration;
+  remove<T>(matcher: Matcher<T>, handler: BatchRemoveHandler<T, V>, options: BatchHandlerOptions): HandlerRegistration;
   
   // Middleware registration
   use(middleware: MiddlewareFunction): this;
@@ -287,6 +333,18 @@ class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
   
   // Process deferred records from SQS
   processDeferred(sqsEvent: SQSEvent): Promise<ProcessingResult>;
+}
+
+// Handler registration result - allows chaining .defer()
+interface HandlerRegistration {
+  // Mark this handler as deferred - enqueues to SQS from stream, executes from SQS
+  defer(options?: DeferOptions): StreamRouter;
+  
+  // Continue chaining more handlers (returns router)
+  insert<T>(...): HandlerRegistration;
+  modify<T>(...): HandlerRegistration;
+  remove<T>(...): HandlerRegistration;
+  use(middleware: MiddlewareFunction): this;
 }
 ```
 
@@ -509,29 +567,35 @@ interface DiffResult {
 
 **Validates: Requirements 15.4**
 
-### Property 27: Defer enqueues record to configured queue
+### Property 27: Deferred handlers enqueue during process()
 
-*For any* handler that calls defer(), the router should serialize the current DynamoDB stream record and send it to the configured defer queue (handler-level or router-level).
+*For any* handler marked with .defer(), when a matching record is processed via process(), the router should enqueue the record to SQS instead of executing the handler code.
 
-**Validates: Requirements 16.4, 16.5**
+**Validates: Requirements 16.4, 16.6**
 
-### Property 28: Handler-level deferQueue overrides router-level
+### Property 28: Deferred handlers execute during processDeferred()
 
-*For any* handler with a deferQueue option, when defer() is called, the record should be sent to the handler's queue, not the router's default queue.
+*For any* handler marked with .defer(), when a matching deferred record is processed via processDeferred(), the router should execute the handler code normally.
+
+**Validates: Requirements 16.5, 16.7**
+
+### Property 29: Defer queue option overrides router-level
+
+*For any* handler with .defer({ queue: 'custom-url' }), the record should be sent to the specified queue, not the router's default deferQueue.
 
 **Validates: Requirements 16.3**
 
-### Property 29: Defer without queue throws ConfigurationError
+### Property 30: Defer without queue throws ConfigurationError
 
-*For any* handler that calls defer() when no deferQueue is configured at either handler or router level, the router should throw a ConfigurationError.
+*For any* handler with .defer() when no queue is specified in defer options and no router-level deferQueue is configured, the router should throw a ConfigurationError at registration time.
 
-**Validates: Requirements 16.7**
+**Validates: Requirements 16.8**
 
-### Property 30: Deferred records process through same handlers
+### Property 31: Deferred record includes handler ID
 
-*For any* record that was deferred and later processed via processDeferred(), the router should invoke the same matching handlers as if it were a direct stream event.
+*For any* deferred record, the SQS message should include the handler ID so that processDeferred() invokes only the specific handler that deferred it.
 
-**Validates: Requirements 16.6**
+**Validates: Requirements 16.6, 16.7**
 
 ## Error Handling
 

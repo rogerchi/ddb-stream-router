@@ -186,17 +186,19 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 
 ### Requirement 16
 
-**User Story:** As a developer, I want to defer record processing to an SQS queue, so that I can handle records asynchronously and use the same handler code for both immediate and deferred processing.
+**User Story:** As a developer, I want to defer record processing to an SQS queue using a declarative API, so that I can write handler code once and have it automatically enqueue from streams or execute from SQS.
 
 #### Acceptance Criteria
 
-1. WHEN a developer creates a Stream_Router with a deferQueue option THEN the Stream_Router SHALL use that queue as the default defer destination for all handlers
-2. WHEN a developer registers a handler with a deferQueue option THEN the Stream_Router SHALL use that queue for deferring records matched by that specific handler
-3. WHEN a handler's deferQueue is specified THEN the handler-level deferQueue SHALL override the router-level deferQueue
-4. WHEN a handler calls the defer() function in the handler context THEN the Stream_Router SHALL enqueue the current record to the configured defer queue
-5. WHEN a record is deferred THEN the Stream_Router SHALL serialize the DynamoDB stream record and send it to the SQS queue
-6. WHEN processing a deferred record from SQS THEN the Stream_Router SHALL deserialize the record and invoke the matching handlers as if it were a direct stream event
-7. WHEN no deferQueue is configured and defer() is called THEN the Stream_Router SHALL throw a ConfigurationError
+1. WHEN a developer creates a Stream_Router with a deferQueue option THEN the Stream_Router SHALL use that queue as the default defer destination for all deferred handlers
+2. WHEN a developer chains .defer() after a handler registration method THEN the Stream_Router SHALL mark that handler as deferred
+3. WHEN a developer chains .defer() with options containing a queue property THEN the Stream_Router SHALL use that queue instead of the router-level deferQueue
+4. WHEN a deferred handler matches a record during process() THEN the Stream_Router SHALL enqueue the record to SQS instead of executing the handler
+5. WHEN a deferred handler matches a record during processDeferred() THEN the Stream_Router SHALL execute the handler code normally
+6. WHEN a record is deferred THEN the Stream_Router SHALL serialize the DynamoDB stream record and handler ID and send it to the SQS queue
+7. WHEN processing a deferred record from SQS THEN the Stream_Router SHALL deserialize the record and invoke only the specific deferred handler that enqueued it
+8. WHEN .defer() is called without a queue option and no router-level deferQueue is configured THEN the Stream_Router SHALL throw a ConfigurationError
+9. WHEN .defer() is chained with options containing delaySeconds THEN the Stream_Router SHALL pass the delay to SQS when enqueuing
 
 ### Requirement 17
 
