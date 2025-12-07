@@ -58,16 +58,31 @@ export class HandlerRegistration<
 	/**
 	 * Mark this handler as deferred - enqueues to SQS from stream, executes from SQS.
 	 *
+	 * @param id - A unique identifier for this deferred handler. This ID is used to match
+	 *             SQS messages back to the correct handler. Must be unique across all
+	 *             deferred handlers in the router.
+	 * @param options - Optional defer configuration (queue URL, delay seconds)
+	 *
 	 * Note: When used with batch handlers, each matching record is enqueued individually
 	 * to SQS. The SQS Lambda trigger's batch settings will determine how records are
 	 * grouped when processed. This means records that would have been processed together
 	 * in a non-deferred batch handler may be split across multiple SQS batches.
 	 * There is no guarantee that related records will be processed together.
 	 */
-	defer(options?: DeferOptions): StreamRouter<V> {
+	defer(id: string, options?: DeferOptions): StreamRouter<V> {
 		const handler = this.router.handlers.find((h) => h.id === this.handlerId);
 		if (!handler) {
 			throw new ConfigurationError("Handler not found for defer configuration");
+		}
+
+		// Check for duplicate deferred handler ID
+		const existingDeferred = this.router.handlers.find(
+			(h) => h.deferred && h.deferOptions?.id === id,
+		);
+		if (existingDeferred) {
+			throw new ConfigurationError(
+				`Duplicate deferred handler ID: "${id}". Each deferred handler must have a unique ID.`,
+			);
 		}
 
 		// Determine the queue URL
@@ -80,6 +95,7 @@ export class HandlerRegistration<
 
 		handler.deferred = true;
 		handler.deferOptions = {
+			id,
 			queue: queueUrl,
 			delaySeconds: options?.delaySeconds,
 		};
@@ -796,13 +812,20 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			);
 		}
 
+		const deferredId = handler.deferOptions?.id;
+		if (!deferredId) {
+			throw new ConfigurationError(
+				"Cannot enqueue deferred record: no deferred handler ID configured",
+			);
+		}
+
 		const message: DeferredRecordMessage = {
-			handlerId: handler.id,
+			handlerId: deferredId,
 			record: record,
 		};
 
 		this.log("Enqueueing deferred record to SQS", {
-			handlerId: handler.id,
+			handlerId: deferredId,
 			eventID: record.eventID,
 			queueUrl,
 			delaySeconds: handler.deferOptions?.delaySeconds,
@@ -1087,15 +1110,18 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 			try {
 				const message: DeferredRecordMessage = JSON.parse(sqsRecord.body);
-				const handler = this._handlers.find((h) => h.id === message.handlerId);
+				// Find handler by deferred ID (from deferOptions.id)
+				const handler = this._handlers.find(
+					(h) => h.deferred && h.deferOptions?.id === message.handlerId,
+				);
 
 				if (!handler) {
-					throw new Error(`Handler not found: ${message.handlerId}`);
+					throw new Error(`Deferred handler not found: ${message.handlerId}`);
 				}
 
 				this.log("Deferred handler found", {
 					messageId: recordId,
-					handlerId: handler.id,
+					deferredId: message.handlerId,
 				});
 
 				const record = message.record as DynamoDBRecord;

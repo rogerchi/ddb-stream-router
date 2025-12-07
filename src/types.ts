@@ -34,6 +34,7 @@ export interface StreamRouterOptions {
 
 // Defer options for .defer() chain method
 export interface DeferOptions {
+	id?: string; // Internal: the deferred handler ID (set by defer() method)
 	queue?: string; // SQS queue URL (overrides router-level deferQueue)
 	delaySeconds?: number; // SQS message delay (0-900 seconds)
 }

@@ -397,9 +397,9 @@ describe("Handler Getters", () => {
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
 
-		router.onInsert(isUser, handler).defer();
+		const deferredId = "user-insert-handler";
+		router.onInsert(isUser, handler).defer(deferredId);
 
-		const handlerId = router.handlers[0].id;
 		const originalRecord = createStreamRecord(
 			"INSERT",
 			{ pk: "user#1", sk: "profile" },
@@ -410,7 +410,10 @@ describe("Handler Getters", () => {
 			Records: [
 				{
 					messageId: "msg-1",
-					body: JSON.stringify({ handlerId, record: originalRecord }),
+					body: JSON.stringify({
+						handlerId: deferredId,
+						record: originalRecord,
+					}),
 				},
 			],
 		};

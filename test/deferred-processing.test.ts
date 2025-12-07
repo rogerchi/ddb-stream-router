@@ -38,7 +38,7 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.onInsert(isUser, handler).defer();
+			router.onInsert(isUser, handler).defer("deferred-handler-1");
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -84,7 +84,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.onModify(isAny, handler).defer();
+			router.onModify(isAny, handler).defer("deferred-handler-2");
 
 			const record = createStreamRecord(
 				"MODIFY",
@@ -121,7 +121,7 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.onRemove(isAny, handler).defer();
+			router.onRemove(isAny, handler).defer("deferred-handler-3");
 
 			const record = createStreamRecord(
 				"REMOVE",
@@ -159,7 +159,7 @@ describe("Deferred Processing with SQS", () => {
 				typeof record === "object" && record !== null;
 
 			// Override with custom queue
-			router.onInsert(isAny, handler).defer({
+			router.onInsert(isAny, handler).defer("deferred-handler-24", {
 				queue: "https://sqs.us-east-1.amazonaws.com/123456789012/custom-queue",
 			});
 
@@ -193,7 +193,9 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.onInsert(isAny, handler).defer({ delaySeconds: 60 });
+			router
+				.onInsert(isAny, handler)
+				.defer("deferred-handler-25", { delaySeconds: 60 });
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -231,8 +233,8 @@ describe("Deferred Processing with SQS", () => {
 			const hasName = (record: unknown): record is { name: string } =>
 				typeof record === "object" && record !== null && "name" in record;
 
-			router.onInsert(isUser, handler1).defer();
-			router.onInsert(hasName, handler2).defer();
+			router.onInsert(isUser, handler1).defer("deferred-handler-4");
+			router.onInsert(hasName, handler2).defer("deferred-handler-5");
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -283,7 +285,7 @@ describe("Deferred Processing with SQS", () => {
 			const hasName = (record: unknown): record is { name: string } =>
 				typeof record === "object" && record !== null && "name" in record;
 
-			router.onInsert(isUser, deferredHandler).defer();
+			router.onInsert(isUser, deferredHandler).defer("deferred-handler-6");
 			router.onInsert(hasName, immediateHandler); // Not deferred
 
 			const record = createStreamRecord(
@@ -321,7 +323,7 @@ describe("Deferred Processing with SQS", () => {
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" && record !== null;
 
-			router.onInsert(isUser, handler).defer();
+			router.onInsert(isUser, handler).defer("deferred-handler-7");
 
 			const originalRecord = createStreamRecord(
 				"INSERT",
@@ -348,7 +350,7 @@ describe("Deferred Processing with SQS", () => {
 			expect(result.failed).toBe(1);
 			expect(result.succeeded).toBe(0);
 			expect(result.errors[0].error.message).toBe(
-				"Handler not found: non_existent_handler_id",
+				"Deferred handler not found: non_existent_handler_id",
 			);
 			expect(handler).not.toHaveBeenCalled();
 		});
@@ -365,7 +367,7 @@ describe("Deferred Processing with SQS", () => {
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" && record !== null;
 
-			router.onInsert(isUser, handler).defer();
+			router.onInsert(isUser, handler).defer("deferred-handler-8");
 
 			const originalRecord = createStreamRecord(
 				"INSERT",
@@ -410,10 +412,10 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
-			router.onInsert(isUser, handler).defer();
+			router.onInsert(isUser, handler).defer("deferred-handler-9");
 
 			// Get the handler ID from the router
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			// Create a mock SQS event with the deferred record
 			const originalRecord = createStreamRecord(
@@ -458,9 +460,9 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.onInsert(isAny, handler).defer();
+			router.onInsert(isAny, handler).defer("deferred-handler-10");
 
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			const record1 = createStreamRecord(
 				"INSERT",
@@ -512,9 +514,9 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.onInsert(isAny, handler).defer();
+			router.onInsert(isAny, handler).defer("deferred-handler-11");
 
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -557,9 +559,9 @@ describe("Deferred Processing with SQS", () => {
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
-			router.onInsert(isAny, handler).defer();
+			router.onInsert(isAny, handler).defer("deferred-handler-12");
 
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			const record1 = createStreamRecord(
 				"INSERT",
@@ -620,9 +622,11 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("USER#");
 
-			router.onInsert(isUser, handler, { batch: true }).defer();
+			router
+				.onInsert(isUser, handler, { batch: true })
+				.defer("deferred-handler-13");
 
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			const record1 = createStreamRecord(
 				"INSERT",
@@ -679,9 +683,9 @@ describe("Deferred Processing with SQS", () => {
 
 			router
 				.onInsert(isAudit, handler, { batch: true, batchKey: "userId" })
-				.defer();
+				.defer("deferred-handler-14");
 
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			const record1 = createStreamRecord(
 				"INSERT",
@@ -745,9 +749,11 @@ describe("Deferred Processing with SQS", () => {
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" && record !== null && "pk" in record;
 
-			router.onInsert(isUser, handler, { batch: true }).defer();
+			router
+				.onInsert(isUser, handler, { batch: true })
+				.defer("deferred-handler-15");
 
-			const handlerId = router.handlers[0].id;
+			const handlerId = router.handlers[0].deferOptions?.id;
 
 			const record1 = createStreamRecord(
 				"INSERT",
@@ -810,11 +816,13 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("ORDER#");
 
-			router.onInsert(isUser, batchHandler, { batch: true }).defer();
-			router.onInsert(isOrder, nonBatchHandler).defer();
+			router
+				.onInsert(isUser, batchHandler, { batch: true })
+				.defer("deferred-handler-16");
+			router.onInsert(isOrder, nonBatchHandler).defer("deferred-handler-17");
 
-			const userHandlerId = router.handlers[0].id;
-			const orderHandlerId = router.handlers[1].id;
+			const userHandlerId = router.handlers[0].deferOptions?.id;
+			const orderHandlerId = router.handlers[1].deferOptions?.id;
 
 			const userRecord1 = createStreamRecord(
 				"INSERT",
@@ -872,10 +880,10 @@ describe("Deferred Processing with SQS", () => {
 		});
 	});
 
-	describe("Deterministic Handler IDs", () => {
-		test("handler IDs are deterministic across router instances", async () => {
+	describe("Explicit Handler IDs", () => {
+		test("explicit handler IDs work across router instances", async () => {
 			// This test simulates Lambda cold starts where a new router instance is created
-			// The handler IDs must be the same for deferred processing to work
+			// Using the same explicit ID ensures the handler can be found
 
 			const sqsClient = new SQSClient({ region: "us-east-1" });
 
@@ -893,14 +901,17 @@ describe("Deferred Processing with SQS", () => {
 				console.log("Processing user:", newImage.pk);
 			};
 
+			// Use the same explicit ID in both router instances
+			const sharedDeferredId = "user-insert-handler";
+
 			// Create first router instance (simulating first Lambda invocation)
 			const router1 = new StreamRouter({
 				deferQueue:
 					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
-			router1.onInsert(isUser, userHandler).defer();
-			const handlerId1 = router1.handlers[0].id;
+			router1.onInsert(isUser, userHandler).defer(sharedDeferredId);
+			const handlerId1 = router1.handlers[0].deferOptions?.id;
 
 			// Create second router instance (simulating cold start)
 			const router2 = new StreamRouter({
@@ -908,14 +919,15 @@ describe("Deferred Processing with SQS", () => {
 					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
-			router2.onInsert(isUser, userHandler).defer();
-			const handlerId2 = router2.handlers[0].id;
+			router2.onInsert(isUser, userHandler).defer(sharedDeferredId);
+			const handlerId2 = router2.handlers[0].deferOptions?.id;
 
-			// Handler IDs should be identical
+			// Handler IDs should be identical (same explicit ID)
 			expect(handlerId1).toBe(handlerId2);
+			expect(handlerId1).toBe(sharedDeferredId);
 		});
 
-		test("different handlers get different IDs", async () => {
+		test("different handlers get different explicit IDs", async () => {
 			const sqsClient = new SQSClient({ region: "us-east-1" });
 
 			const isUser = (record: unknown): record is { pk: string } =>
@@ -950,17 +962,19 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			router.onInsert(isUser, handler1).defer();
-			router.onInsert(isOrder, handler2).defer();
+			router.onInsert(isUser, handler1).defer("user-handler");
+			router.onInsert(isOrder, handler2).defer("order-handler");
 
-			const handlerId1 = router.handlers[0].id;
-			const handlerId2 = router.handlers[1].id;
+			const handlerId1 = router.handlers[0].deferOptions?.id;
+			const handlerId2 = router.handlers[1].deferOptions?.id;
 
 			// Handler IDs should be different
 			expect(handlerId1).not.toBe(handlerId2);
+			expect(handlerId1).toBe("user-handler");
+			expect(handlerId2).toBe("order-handler");
 		});
 
-		test("processDeferred works with handler ID from different router instance", async () => {
+		test("processDeferred works with same explicit ID across router instances", async () => {
 			sqsMock.on(SendMessageCommand).resolves({ MessageId: "test-message-id" });
 
 			const sqsClient = new SQSClient({ region: "us-east-1" });
@@ -972,6 +986,9 @@ describe("Deferred Processing with SQS", () => {
 				"pk" in record &&
 				(record as { pk: string }).pk.startsWith("user#");
 
+			// Use the same explicit ID in both router instances
+			const sharedDeferredId = "user-insert-handler";
+
 			const userHandler = jest.fn();
 
 			// First router instance - enqueues to SQS
@@ -980,7 +997,7 @@ describe("Deferred Processing with SQS", () => {
 					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
-			streamRouter.onInsert(isUser, userHandler).defer();
+			streamRouter.onInsert(isUser, userHandler).defer(sharedDeferredId);
 
 			const record = createStreamRecord(
 				"INSERT",
@@ -998,6 +1015,9 @@ describe("Deferred Processing with SQS", () => {
 			);
 			const enqueuedHandlerId = messageBody.handlerId;
 
+			// Verify the enqueued ID matches our explicit ID
+			expect(enqueuedHandlerId).toBe(sharedDeferredId);
+
 			// Second router instance - processes from SQS (simulating cold start)
 			const sqsRouter = new StreamRouter({
 				deferQueue:
@@ -1005,10 +1025,10 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 			const sqsHandler = jest.fn();
-			sqsRouter.onInsert(isUser, sqsHandler).defer();
+			sqsRouter.onInsert(isUser, sqsHandler).defer(sharedDeferredId);
 
 			// Verify the handler IDs match
-			expect(sqsRouter.handlers[0].id).toBe(enqueuedHandlerId);
+			expect(sqsRouter.handlers[0].deferOptions?.id).toBe(enqueuedHandlerId);
 
 			// Process the deferred record
 			const sqsEvent = {

@@ -1720,7 +1720,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.onInsert(discriminator, handler).defer();
+		router.onInsert(discriminator, handler).defer("test-insert-handler");
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -1754,11 +1754,8 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		const registration = router.onInsert(discriminator, handler);
-		registration.defer();
-
-		// Get the handler ID from the router
-		const handlerId = router.handlers[0].id;
+		const deferredId = "test-insert-handler";
+		router.onInsert(discriminator, handler).defer(deferredId);
 
 		// Create a mock SQS event with the deferred record
 		const originalRecord = createMockRecord("INSERT", { id: "test123" });
@@ -1766,7 +1763,7 @@ describe("Defer Functionality Properties", () => {
 			Records: [
 				{
 					body: JSON.stringify({
-						handlerId,
+						handlerId: deferredId,
 						record: originalRecord,
 					}),
 				},
@@ -1796,7 +1793,7 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.onInsert(discriminator, handler).defer({
+		router.onInsert(discriminator, handler).defer("custom-queue-handler", {
 			queue: "https://sqs.us-east-1.amazonaws.com/123456789/custom-queue",
 		});
 
@@ -1825,7 +1822,7 @@ describe("Defer Functionality Properties", () => {
 			typeof record === "object" && record !== null && "id" in record;
 
 		expect(() => {
-			router.onInsert(discriminator, handler).defer();
+			router.onInsert(discriminator, handler).defer("no-queue-handler");
 		}).toThrow(ConfigurationError);
 	});
 
@@ -1846,9 +1843,8 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.onInsert(discriminator, handler).defer();
-
-		const handlerId = router.handlers[0].id;
+		const deferredId = "test-insert-handler";
+		router.onInsert(discriminator, handler).defer(deferredId);
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -1857,7 +1853,7 @@ describe("Defer Functionality Properties", () => {
 
 		// Parse the message body and verify handler ID is included
 		const messageBody = JSON.parse(mockSQS.sentMessages[0].MessageBody);
-		expect(messageBody.handlerId).toBe(handlerId);
+		expect(messageBody.handlerId).toBe(deferredId);
 		expect(messageBody.record).toBeDefined();
 	});
 
@@ -1871,7 +1867,9 @@ describe("Defer Functionality Properties", () => {
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
-		router.onInsert(discriminator, handler).defer({ delaySeconds: 30 });
+		router.onInsert(discriminator, handler).defer("delayed-handler", {
+			delaySeconds: 30,
+		});
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -1894,7 +1892,7 @@ describe("Defer Functionality Properties", () => {
 
 		// Register both immediate and deferred handlers
 		router.onInsert(discriminator, immediateHandler);
-		router.onInsert(discriminator, deferredHandler).defer();
+		router.onInsert(discriminator, deferredHandler).defer("deferred-handler");
 
 		const record = createMockRecord("INSERT", { id: "test123" });
 		const event = createMockEvent([record]);
@@ -1909,5 +1907,25 @@ describe("Defer Functionality Properties", () => {
 
 		// SQS should have received one message (for deferred handler)
 		expect(mockSQS.sendMessage).toHaveBeenCalledTimes(1);
+	});
+
+	test("Duplicate deferred handler ID throws ConfigurationError", () => {
+		const mockSQS = createMockSQSClient();
+		const router = new StreamRouter({
+			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			sqsClient: mockSQS,
+		});
+		const handler1 = jest.fn();
+		const handler2 = jest.fn();
+		const discriminator = (record: unknown): record is { id: string } =>
+			typeof record === "object" && record !== null && "id" in record;
+
+		// First defer should succeed
+		router.onInsert(discriminator, handler1).defer("duplicate-id");
+
+		// Second defer with same ID should throw
+		expect(() => {
+			router.onInsert(discriminator, handler2).defer("duplicate-id");
+		}).toThrow(ConfigurationError);
 	});
 });

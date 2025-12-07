@@ -42,7 +42,7 @@ router
 		await sendOrderConfirmationEmail(newOrder.customerEmail, newOrder.orderId);
 		await generateInvoicePDF(newOrder.orderId);
 	})
-	.defer({ delaySeconds: 5 }); // Optional delay
+	.defer("order-heavy-processing", { delaySeconds: 5 }); // Explicit ID required for deferred handlers
 
 // DynamoDB Stream handler - processes stream, enqueues deferred work
 export const streamHandler = router.streamHandler;

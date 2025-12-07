@@ -103,7 +103,7 @@ router
 			eventId: ctx.eventID,
 		});
 	})
-	.defer();
+	.defer("deferred-insert-handler");
 
 // Export handlers for Lambda
 export const streamHandler = router.streamHandler;
