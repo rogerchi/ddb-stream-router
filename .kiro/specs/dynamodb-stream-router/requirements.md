@@ -158,6 +158,8 @@ The DynamoDB Stream Router is a TypeScript library that provides an Express-like
 2. WHEN a developer creates a Stream_Router without specifying the unmarshall option THEN the Stream_Router SHALL default to unmarshalling records (unmarshall: true)
 3. WHEN a developer creates a Stream_Router with unmarshall option set to false THEN the Stream_Router SHALL pass records in raw DynamoDB JSON format to discriminators, parsers, and handlers
 4. WHEN unmarshalling is enabled THEN the Stream_Router SHALL use the @aws-sdk/util-dynamodb unmarshall function
+5. WHEN a developer imports the unmarshallMiddleware utility THEN the Stream_Router SHALL provide a middleware function that can be used with the use() method for custom unmarshalling pipelines
+6. WHEN the unmarshallMiddleware is used THEN the middleware SHALL unmarshall the record's NewImage, OldImage, and Keys and attach them to the record for downstream handlers
 
 ### Requirement 13
 

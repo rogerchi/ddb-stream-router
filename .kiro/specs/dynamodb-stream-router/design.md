@@ -242,6 +242,27 @@ type MiddlewareFunction = (
 ) => void | Promise<void>;
 ```
 
+### Middleware Utilities
+
+The library exports utility middleware functions for common operations:
+
+```typescript
+// Unmarshall middleware - converts DynamoDB JSON to native JS objects
+// Can be used instead of or in addition to the constructor option
+import { unmarshallMiddleware } from 'ddb-stream-router';
+
+const router = new StreamRouter({ unmarshall: false }); // Disable built-in unmarshalling
+router.use(unmarshallMiddleware()); // Use middleware instead for more control
+
+// The middleware attaches unmarshalled data to the record
+function unmarshallMiddleware(): MiddlewareFunction;
+```
+
+This provides flexibility for advanced use cases:
+- Custom unmarshalling logic
+- Conditional unmarshalling based on record properties
+- Composing with other middleware
+
 ### StreamRouter Class
 
 ```typescript

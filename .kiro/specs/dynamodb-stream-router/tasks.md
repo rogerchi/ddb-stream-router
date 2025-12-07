@@ -233,6 +233,11 @@
     - Export error classes (ConfigurationError)
     - Create clean index.ts barrel file
     - _Requirements: 8.1, 8.2, 8.3_
+  - [ ] 15.2 Create and export unmarshallMiddleware utility
+    - Implement unmarshallMiddleware() function that returns a MiddlewareFunction
+    - Middleware should unmarshall NewImage, OldImage, and Keys
+    - Export from main index.ts
+    - _Requirements: 11.5, 11.6_
 
 - [ ] 16. Integration tests with DynamoDB Local
   - [ ] 16.1 Set up DynamoDB Local test infrastructure
