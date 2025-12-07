@@ -259,7 +259,7 @@ router
     await sendConfirmationEmail(order);
     await generateInvoice(order);
   })
-  .defer({ delaySeconds: 30 });
+  .defer('order-email-handler', { delaySeconds: 30 });
 
 // Stream handler - simplified export with built-in batch failure support
 export const streamHandler = router.streamHandler;
@@ -347,7 +347,8 @@ class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
 
 ```typescript
 interface HandlerRegistration {
-  defer(options?: { queue?: string; delaySeconds?: number }): StreamRouter;
+  // id: unique identifier for this deferred handler (used to match records in processDeferred)
+  defer(id: string, options?: { queue?: string; delaySeconds?: number }): StreamRouter;
   onInsert(...): HandlerRegistration;
   onModify(...): HandlerRegistration;
   onRemove(...): HandlerRegistration;
