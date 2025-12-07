@@ -78,8 +78,6 @@ async function drainVerificationQueue(
 ): Promise<VerificationMessage[]> {
 	const messages: VerificationMessage[] = [];
 	const startTime = Date.now();
-	let emptyPollCount = 0;
-	const maxEmptyPolls = 3; // Stop after 3 consecutive empty polls
 
 	console.log(
 		`  Draining queue for ${expectedCount} messages (timeout: ${timeoutMs / 1000}s)...`,
@@ -90,14 +88,12 @@ async function drainVerificationQueue(
 			new ReceiveMessageCommand({
 				QueueUrl: queueUrl,
 				MaxNumberOfMessages: 10,
-				WaitTimeSeconds: 10,
+				WaitTimeSeconds: 5,
 				VisibilityTimeout: 30,
 			}),
 		);
 
 		if (response.Messages && response.Messages.length > 0) {
-			emptyPollCount = 0; // Reset empty poll counter
-
 			for (const msg of response.Messages) {
 				if (msg.Body && msg.ReceiptHandle) {
 					const parsed = JSON.parse(msg.Body) as VerificationMessage;
@@ -115,22 +111,12 @@ async function drainVerificationQueue(
 					);
 				}
 			}
-		} else {
-			emptyPollCount++;
-			console.log(
-				`  Empty poll ${emptyPollCount}/${maxEmptyPolls} (collected ${messages.length}/${expectedCount})`,
-			);
 
-			// If we have enough messages and got empty polls, we're done
-			if (messages.length >= expectedCount && emptyPollCount >= maxEmptyPolls) {
+			// Exit immediately once we have all expected messages
+			if (messages.length >= expectedCount) {
+				console.log(`  Got all ${expectedCount} expected messages`);
 				break;
 			}
-		}
-
-		// Early exit if we have all expected messages
-		if (messages.length >= expectedCount) {
-			// Do one more poll to make sure we got everything
-			await new Promise((resolve) => setTimeout(resolve, 2000));
 		}
 	}
 
