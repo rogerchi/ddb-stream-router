@@ -1,4 +1,5 @@
 import * as fc from "fast-check";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ConfigurationError } from "../src/errors";
 import { StreamRouter } from "../src/stream-router";
 import type { StreamViewType } from "../src/types";
@@ -93,7 +94,7 @@ describe("StreamRouter Handler Registration Properties", () => {
 					record !== null &&
 					"id" in record &&
 					typeof (record as { id: unknown }).id === "string";
-				const handler = jest.fn();
+				const handler = vi.fn();
 
 				// Register handler based on event type
 				if (eventType === "INSERT") {
@@ -133,8 +134,8 @@ describe("StreamRouter Handler Registration Properties", () => {
 			}),
 		};
 
-		router.onInsert(discriminator, jest.fn());
-		router.onInsert(parser, jest.fn());
+		router.onInsert(discriminator, vi.fn());
+		router.onInsert(parser, vi.fn());
 
 		expect(router.handlers[0].isParser).toBe(false);
 		expect(router.handlers[1].isParser).toBe(true);
@@ -144,7 +145,7 @@ describe("StreamRouter Handler Registration Properties", () => {
 		const router = new StreamRouter();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		// Chaining through HandlerRegistration proxy methods
 		router
@@ -171,7 +172,7 @@ describe("StreamRouter Middleware Properties", () => {
 				const middlewareFns: Array<() => void> = [];
 
 				for (let i = 0; i < middlewareCount; i++) {
-					const fn = jest.fn();
+					const fn = vi.fn();
 					middlewareFns.push(fn);
 					router.use(async (_record, next) => {
 						fn();
@@ -196,10 +197,10 @@ describe("StreamRouter Middleware Properties", () => {
 	 */
 	test("Property 8: Middleware use() returns this for chaining", () => {
 		const router = new StreamRouter();
-		const middleware1 = jest.fn(async (_record, next) => {
+		const middleware1 = vi.fn(async (_record, next) => {
 			await next();
 		});
-		const middleware2 = jest.fn(async (_record, next) => {
+		const middleware2 = vi.fn(async (_record, next) => {
 			await next();
 		});
 
@@ -283,7 +284,7 @@ describe("StreamRouter Event Processing Properties", () => {
 				fc.string({ minLength: 1 }),
 				async (eventType, id) => {
 					const router = new StreamRouter();
-					const handler = jest.fn();
+					const handler = vi.fn();
 					const discriminator = (record: unknown): record is { id: string } =>
 						typeof record === "object" && record !== null && "id" in record;
 
@@ -316,7 +317,7 @@ describe("StreamRouter Event Processing Properties", () => {
 	 */
 	test("Property 5: Parser-validated handlers receive parsed data", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const parser = {
 			parse: (data: unknown) => data as { id: string },
 			safeParse: (data: unknown) => {
@@ -347,7 +348,7 @@ describe("StreamRouter Event Processing Properties", () => {
 	 */
 	test("Property 6: Parser validation failures skip handler without error", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const parser = {
 			parse: () => {
 				throw new Error("Invalid");
@@ -426,7 +427,7 @@ describe("StreamRouter Event Processing Properties", () => {
 	 */
 	test("Property 13: Non-matching records are skipped without error", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (
 			record: unknown,
 		): record is { specificField: string } =>
@@ -484,7 +485,7 @@ describe("StreamRouter Stream View Type Properties", () => {
 	 */
 	test("Property 10: KEYS_ONLY provides only keys to handlers", async () => {
 		const router = new StreamRouter({ streamViewType: "KEYS_ONLY" });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (_record: unknown): _record is { pk: string } => true;
 
 		router.onInsert(discriminator, handler);
@@ -504,7 +505,7 @@ describe("StreamRouter Stream View Type Properties", () => {
 
 	test("Property 10: NEW_IMAGE provides newImage to INSERT handlers", async () => {
 		const router = new StreamRouter({ streamViewType: "NEW_IMAGE" });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -529,7 +530,7 @@ describe("StreamRouter Unmarshalling Properties", () => {
 	 */
 	test("Property 20: Unmarshalling converts DynamoDB JSON to native objects", async () => {
 		const router = new StreamRouter({ unmarshall: true });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -555,7 +556,7 @@ describe("StreamRouter Unmarshalling Properties", () => {
 	 */
 	test("Property 21: Unmarshalling disabled passes raw format", async () => {
 		const router = new StreamRouter({ unmarshall: false });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (
 			_record: unknown,
 		): _record is Record<string, unknown> => true;
@@ -593,7 +594,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 	test("Property 22: Same region filtering skips cross-region records", async () => {
 		process.env.AWS_REGION = "us-west-2";
 		const router = new StreamRouter({ sameRegionOnly: true });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
 		router.onInsert(discriminator, handler);
@@ -624,7 +625,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 	test("Property 23: Same region filtering processes matching region records", async () => {
 		process.env.AWS_REGION = "us-east-1";
 		const router = new StreamRouter({ sameRegionOnly: true });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
 		router.onInsert(discriminator, handler);
@@ -654,7 +655,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 	test("Property 24: Same region filtering defaults to disabled", async () => {
 		process.env.AWS_REGION = "us-west-2";
 		const router = new StreamRouter(); // sameRegionOnly defaults to false
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
 		router.onInsert(discriminator, handler);
@@ -680,7 +681,7 @@ describe("StreamRouter Same Region Filtering Properties", () => {
 	test("Same region filtering allows processing when AWS_REGION is not set", async () => {
 		delete process.env.AWS_REGION;
 		const router = new StreamRouter({ sameRegionOnly: true });
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (_record: unknown): _record is { id: string } => true;
 
 		router.onInsert(discriminator, handler);
@@ -1037,7 +1038,7 @@ describe("Multiple Attribute Filter Properties", () => {
 				fc.string({ minLength: 1 }),
 				async (attrName, newValue) => {
 					const router = new StreamRouter();
-					const handler = jest.fn();
+					const handler = vi.fn();
 					const discriminator = (
 						_record: unknown,
 					): _record is Record<string, unknown> => true;
@@ -1079,7 +1080,7 @@ describe("Multiple Attribute Filter Properties", () => {
 
 	test("Property 17: Handler not invoked when no filter condition matches", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (
 			_record: unknown,
 		): _record is Record<string, unknown> => true;
@@ -1132,7 +1133,7 @@ describe("Batch Processing Properties", () => {
 		await fc.assert(
 			fc.asyncProperty(fc.integer({ min: 1, max: 10 }), async (recordCount) => {
 				const router = new StreamRouter();
-				const handler = jest.fn();
+				const handler = vi.fn();
 				const discriminator = (record: unknown): record is { id: string } =>
 					typeof record === "object" && record !== null && "id" in record;
 
@@ -1161,7 +1162,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Property 18: Batch mode with single record returns single-element array", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1180,7 +1181,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Property 18: Batch mode only collects matching records", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { type: string } =>
 			typeof record === "object" &&
 			record !== null &&
@@ -1218,7 +1219,7 @@ describe("Batch Processing Properties", () => {
 				fc.integer({ min: 1, max: 3 }),
 				async (groupCount, recordsPerGroup) => {
 					const router = new StreamRouter();
-					const handler = jest.fn();
+					const handler = vi.fn();
 					const discriminator = (
 						record: unknown,
 					): record is { groupId: string; id: string } =>
@@ -1265,7 +1266,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Property 19: Batch key function groups records correctly", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (
 			record: unknown,
 		): record is { category: string; id: string } =>
@@ -1295,12 +1296,12 @@ describe("Batch Processing Properties", () => {
 			(call) => call[0].length === 2,
 		);
 		expect(electronicsCall).toBeDefined();
-		expect(electronicsCall[0]).toHaveLength(2);
+		expect(electronicsCall?.[0]).toHaveLength(2);
 	});
 
 	test("Property 19: Batch mode without batchKey groups all records together", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1323,7 +1324,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Property 19: PrimaryKeyConfig groups by partition key only", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (
 			record: unknown,
 		): record is { pk: string; sk: string; data: string } =>
@@ -1356,7 +1357,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Property 19: PrimaryKeyConfig groups by composite key (partition + sort)", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (
 			record: unknown,
 		): record is { pk: string; sk: string; version: number } =>
@@ -1393,7 +1394,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Batch mode works with MODIFY events", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1425,7 +1426,7 @@ describe("Batch Processing Properties", () => {
 
 	test("Batch mode works with REMOVE events", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1689,7 +1690,7 @@ describe("Defer Functionality Properties", () => {
 			DelaySeconds?: number;
 		}> = [];
 		return {
-			sendMessage: jest.fn(
+			sendMessage: vi.fn(
 				async (params: {
 					QueueUrl: string;
 					MessageBody: string;
@@ -1716,7 +1717,7 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
 			sqsClient: mockSQS,
 		});
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1750,7 +1751,7 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
 			sqsClient: mockSQS,
 		});
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1789,7 +1790,7 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/default-queue",
 			sqsClient: mockSQS,
 		});
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1817,7 +1818,7 @@ describe("Defer Functionality Properties", () => {
 	 */
 	test("Property 30: Defer without queue throws ConfigurationError", () => {
 		const router = new StreamRouter(); // No deferQueue configured
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1839,7 +1840,7 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
 			sqsClient: mockSQS,
 		});
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1863,7 +1864,7 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
 			sqsClient: mockSQS,
 		});
-		const handler = jest.fn();
+		const handler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1885,8 +1886,8 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
 			sqsClient: mockSQS,
 		});
-		const immediateHandler = jest.fn();
-		const deferredHandler = jest.fn();
+		const immediateHandler = vi.fn();
+		const deferredHandler = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 
@@ -1915,8 +1916,8 @@ describe("Defer Functionality Properties", () => {
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
 			sqsClient: mockSQS,
 		});
-		const handler1 = jest.fn();
-		const handler2 = jest.fn();
+		const handler1 = vi.fn();
+		const handler2 = vi.fn();
 		const discriminator = (record: unknown): record is { id: string } =>
 			typeof record === "object" && record !== null && "id" in record;
 

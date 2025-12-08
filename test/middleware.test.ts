@@ -2,6 +2,7 @@
  * Tests for middleware functionality
  */
 import type { DynamoDBRecord, DynamoDBStreamEvent } from "aws-lambda";
+import { describe, expect, it, vi } from "vitest";
 import { StreamRouter, unmarshallMiddleware } from "../src";
 import type { UnmarshalledRecord } from "../src/middleware";
 
@@ -97,8 +98,8 @@ describe("Middleware execution", () => {
 
 	it("should skip handlers when middleware does not call next()", async () => {
 		const router = new StreamRouter();
-		const middleware2Called = jest.fn();
-		const handlerCalled = jest.fn();
+		const middleware2Called = vi.fn();
+		const handlerCalled = vi.fn();
 
 		router.use(async (_record, _next) => {
 			// Don't call next() - stops middleware chain AND skips handlers
@@ -133,7 +134,7 @@ describe("Middleware execution", () => {
 		});
 
 		const discriminator = (_r: unknown): _r is Record<string, unknown> => true;
-		router.onInsert(discriminator, jest.fn());
+		router.onInsert(discriminator, vi.fn());
 
 		const record = createRecord("INSERT", { pk: "test" });
 		const result = await router.process(createEvent([record]));
@@ -177,7 +178,7 @@ describe("Middleware execution", () => {
 		});
 
 		const discriminator = (_r: unknown): _r is Record<string, unknown> => true;
-		router.onInsert(discriminator, jest.fn());
+		router.onInsert(discriminator, vi.fn());
 
 		const records = [
 			createRecord("INSERT", { pk: "test1" }),
@@ -202,7 +203,7 @@ describe("Middleware execution", () => {
 		});
 
 		const discriminator = (_r: unknown): _r is { pk: string } => true;
-		router.onInsert(discriminator, jest.fn());
+		router.onInsert(discriminator, vi.fn());
 
 		const records = [
 			{
@@ -238,7 +239,7 @@ describe("unmarshallMiddleware", () => {
 		});
 
 		const discriminator = (_r: unknown): _r is Record<string, unknown> => true;
-		router.onInsert(discriminator, jest.fn());
+		router.onInsert(discriminator, vi.fn());
 
 		const record = createRecord("INSERT", { pk: "USER#123", name: "John" });
 		await router.process(createEvent([record]));
@@ -262,7 +263,7 @@ describe("unmarshallMiddleware", () => {
 		});
 
 		const discriminator = (_r: unknown): _r is Record<string, unknown> => true;
-		router.onRemove(discriminator, jest.fn());
+		router.onRemove(discriminator, vi.fn());
 
 		// REMOVE event with only OldImage
 		const record = createRecord("REMOVE", undefined, { pk: "USER#123" });
@@ -345,7 +346,7 @@ describe("Middleware error handling", () => {
 		});
 
 		const discriminator = (_r: unknown): _r is Record<string, unknown> => true;
-		router.onInsert(discriminator, jest.fn());
+		router.onInsert(discriminator, vi.fn());
 
 		const record = createRecord("INSERT", { pk: "test" });
 		const result = await router.process(createEvent([record]));

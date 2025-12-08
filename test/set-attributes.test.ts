@@ -6,6 +6,7 @@
  * - NS (Number Set) - becomes Set<number> after unmarshalling
  * - BS (Binary Set) - becomes Set<Uint8Array> after unmarshalling
  */
+import { describe, expect, it } from "vitest";
 import { diffAttributes, hasAttributeChange } from "../src/attribute-diff";
 
 describe("String Set (SS) change detection", () => {

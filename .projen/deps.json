@@ -14,15 +14,16 @@
       "type": "build"
     },
     {
+      "name": "@nikovirtala/projen-vitest",
+      "type": "build"
+    },
+    {
       "name": "@types/aws-lambda",
       "type": "build"
     },
     {
-      "name": "@types/jest",
-      "type": "build"
-    },
-    {
       "name": "@types/node",
+      "version": "^24",
       "type": "build"
     },
     {
@@ -56,20 +57,11 @@
       "type": "build"
     },
     {
-      "name": "jest",
-      "type": "build"
-    },
-    {
-      "name": "jest-junit",
-      "version": "^16",
-      "type": "build"
-    },
-    {
       "name": "projen",
       "type": "build"
     },
     {
-      "name": "ts-jest",
+      "name": "swc",
       "type": "build"
     },
     {
@@ -77,12 +69,26 @@
       "type": "build"
     },
     {
+      "name": "tsx",
+      "type": "build"
+    },
+    {
       "name": "typescript",
+      "type": "build"
+    },
+    {
+      "name": "vitest",
+      "version": "^4",
       "type": "build"
     },
     {
       "name": "zod",
       "type": "build"
+    },
+    {
+      "name": "@vitest/coverage-v8",
+      "version": "^4",
+      "type": "devenv"
     },
     {
       "name": "@aws-sdk/client-sqs",

@@ -89,7 +89,13 @@
       "description": "Only compile",
       "steps": [
         {
-          "exec": "tsc --build"
+          "exec": "swc src -d esm -C module.type=es6"
+        },
+        {
+          "exec": "swc src -d cjs -C module.type=commonjs"
+        },
+        {
+          "exec": "tsc --outDir types --declaration --emitDeclarationOnly"
         }
       ]
     },
@@ -98,7 +104,7 @@
       "description": "Synthesize project files",
       "steps": [
         {
-          "exec": "ts-node --project tsconfig.dev.json .projenrc.ts"
+          "exec": "tsc .projenrc.ts --noEmit  && tsx --tsconfig tsconfig.dev.json .projenrc.ts"
         }
       ]
     },
@@ -214,20 +220,29 @@
       "description": "Run tests",
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
-          "receiveArgs": true
+          "spawn": "biome"
         },
         {
-          "spawn": "biome"
+          "exec": "vitest run",
+          "receiveArgs": true
+        }
+      ]
+    },
+    "test:update": {
+      "name": "test:update",
+      "steps": [
+        {
+          "exec": "vitest --update",
+          "receiveArgs": true
         }
       ]
     },
     "test:watch": {
       "name": "test:watch",
-      "description": "Run jest in watch mode",
       "steps": [
         {
-          "exec": "jest --watch"
+          "exec": "vitest watch",
+          "receiveArgs": true
         }
       ]
     },
@@ -256,13 +271,13 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-dynamodb,@aws-sdk/client-sqs,@types/aws-lambda,@types/jest,@types/node,aws-cdk,aws-cdk-lib,aws-sdk-client-mock,esbuild,fast-check,jest,projen,ts-jest,ts-node,typescript,zod,@aws-sdk/util-dynamodb"
+          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-sdk/client-dynamodb,@aws-sdk/client-sqs,@nikovirtala/projen-vitest,@types/aws-lambda,aws-cdk,aws-cdk-lib,aws-sdk-client-mock,esbuild,fast-check,projen,swc,ts-node,tsx,typescript,zod,@aws-sdk/util-dynamodb"
         },
         {
           "exec": "yarn install --check-files"
         },
         {
-          "exec": "yarn upgrade @aws-sdk/client-dynamodb @aws-sdk/client-sqs @biomejs/biome @types/aws-lambda @types/jest @types/node aws-cdk aws-cdk-lib aws-sdk-client-mock commit-and-tag-version constructs esbuild fast-check jest jest-junit projen ts-jest ts-node typescript zod @aws-sdk/util-dynamodb"
+          "exec": "yarn upgrade @aws-sdk/client-dynamodb @aws-sdk/client-sqs @biomejs/biome @nikovirtala/projen-vitest @types/aws-lambda @types/node aws-cdk aws-cdk-lib aws-sdk-client-mock commit-and-tag-version constructs esbuild fast-check projen swc ts-node tsx typescript vitest zod @vitest/coverage-v8 @aws-sdk/util-dynamodb"
         },
         {
           "exec": "npx projen"

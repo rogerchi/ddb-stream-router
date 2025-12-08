@@ -1,5 +1,5 @@
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
-import { StreamRouter, createSQSClient } from "../src";
+import { StreamRouter, createSQSClient } from "../src/index.js";
 
 // Environment variables
 const DEFER_QUEUE_URL = process.env.DEFER_QUEUE_URL!;

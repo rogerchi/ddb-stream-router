@@ -4,7 +4,7 @@
  * The StreamRouter uses a minimal SQSClient interface to avoid a hard dependency
  * on @aws-sdk/client-sqs. This helper wraps the AWS SDK client to match that interface.
  */
-import type { SQSClient } from "./types";
+import type { SQSClient } from "./types.js";
 
 /**
  * Interface matching the AWS SDK v3 SQSClient's send method signature.
