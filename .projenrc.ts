@@ -12,7 +12,7 @@ const project = new typescript.TypeScriptProject({
 	npmTrustedPublishing: true,
 	description:
 		"Express-like routing for DynamoDB Streams with type-safe handlers, validation, attribute filtering, batch processing, and SQS deferral",
-	docgen: true,
+	docgen: false,
 	keywords: ["aws-sdk", "dynamodb"],
 	projenrcTs: true,
 	biome: true,
