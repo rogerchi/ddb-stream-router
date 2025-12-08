@@ -1,4 +1,4 @@
-# ddb-stream-router
+# @rogerchi/ddb-stream-router
 
 A TypeScript library providing Express-like routing for DynamoDB Stream events. Register type-safe handlers for INSERT, MODIFY, and REMOVE operations using discriminator functions or schema validators like Zod. Defer heavy processing to SQS with a simple `.defer(handlerId)` chain to keep your stream processing fast and reliable.
 
@@ -17,9 +17,9 @@ A TypeScript library providing Express-like routing for DynamoDB Stream events. 
 ## Installation
 
 ```bash
-npm install ddb-stream-router
+npm install @rogerchi/ddb-stream-router
 # or
-yarn add ddb-stream-router
+yarn add @rogerchi/ddb-stream-router
 ```
 
 **Peer dependencies:**
