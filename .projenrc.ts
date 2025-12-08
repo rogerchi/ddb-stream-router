@@ -118,6 +118,8 @@ project.compileTask.exec("swc src -d cjs -C module.type=commonjs");
 project.compileTask.exec(
 	"tsc --outDir types --declaration --emitDeclarationOnly",
 );
+// write {"type": "commonjs"} to cjs/package.json
+project.compileTask.exec('echo \'{"type": "commonjs"}\' > cjs/package.json');
 
 new Vitest(project);
 

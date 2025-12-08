@@ -96,6 +96,9 @@
         },
         {
           "exec": "tsc --outDir types --declaration --emitDeclarationOnly"
+        },
+        {
+          "exec": "echo '{\"type\": \"commonjs\"}' > cjs/package.json"
         }
       ]
     },
