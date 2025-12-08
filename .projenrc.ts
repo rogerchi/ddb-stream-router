@@ -9,6 +9,7 @@ const project = new typescript.TypeScriptProject({
 	releaseToNpm: true,
 	repository: "github:rogerchi/ddb-stream-router",
 	npmAccess: NpmAccess.PUBLIC,
+	npmTrustedPublishing: true,
 	description:
 		"Express-like routing for DynamoDB Streams with type-safe handlers, validation, attribute filtering, batch processing, and SQS deferral",
 	docgen: true,
@@ -63,6 +64,7 @@ project.npmignore?.addPatterns(
 	"/biome.jsonc",
 	"/integ/",
 	"/.cdk.outputs.integration.json",
+	"/docs/",
 );
 
 // Exclude CDK outputs from git

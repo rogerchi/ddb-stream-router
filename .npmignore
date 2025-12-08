@@ -25,6 +25,7 @@ tsconfig.tsbuildinfo
 /biome.jsonc
 /integ/
 /.cdk.outputs.integration.json
+/docs/
 /.gitattributes
 /.projenrc.ts
 /projenrc
