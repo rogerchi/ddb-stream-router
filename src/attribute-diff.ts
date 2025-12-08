@@ -1,4 +1,8 @@
-import type { AttributeChangeType, AttributeDiff, DiffResult } from "./types";
+import type {
+	AttributeChangeType,
+	AttributeDiff,
+	DiffResult,
+} from "./types.js";
 
 /**
  * Gets a nested value from an object using dot notation path.

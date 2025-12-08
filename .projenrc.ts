@@ -1,3 +1,4 @@
+import { Vitest } from "@nikovirtala/projen-vitest";
 import { typescript } from "projen";
 import { NpmAccess } from "projen/lib/javascript";
 
@@ -28,16 +29,29 @@ const project = new typescript.TypeScriptProject({
 		"aws-cdk-lib",
 		"aws-cdk",
 		"esbuild",
+		"swc",
+		"tsx",
+		"@nikovirtala/projen-vitest",
 	],
+	jest: false,
 	peerDeps: ["@aws-sdk/util-dynamodb", "@aws-sdk/client-sqs"],
 	tsconfig: {
 		compilerOptions: {
 			inlineSourceMap: false,
 			inlineSources: false,
 			sourceMap: true, // Generate separate .map files instead
+			module: "nodenext",
+			target: "es2015",
+			isolatedModules: true,
 		},
 	},
+	entrypointTypes: "types/index.d.ts",
+	minNodeVersion: "24",
 });
+
+project.defaultTask?.reset(
+	`tsc .projenrc.ts --noEmit  && tsx --tsconfig ${project.tsconfigDev.fileName} .projenrc.ts`,
+);
 
 // Add integration test scripts
 project.addTask("integ:deploy", {
@@ -71,6 +85,40 @@ project.npmignore?.addPatterns(
 project.gitignore?.addPatterns(
 	".cdk.outputs.integration.json",
 	"integ/cdk.out/",
+	"cjs/",
+	"esm/",
+	"types/",
 );
+
+project.addFields({
+	files: ["esm", "cjs", "types"],
+	main: "./cjs/index.cjs",
+	exports: {
+		".": {
+			import: {
+				types: "./types/index.d.ts",
+				default: "./esm/index.js",
+			},
+			require: {
+				types: "./types/index.d.ts",
+				default: "./cjs/index.cjs",
+			},
+		},
+		"./*": {
+			import: "./esm/*",
+			require: "./cjs/*",
+		},
+	},
+	type: "module",
+});
+
+project.compileTask.reset();
+project.compileTask.exec("swc src -d esm -C module.type=es6");
+project.compileTask.exec("swc src -d cjs -C module.type=commonjs");
+project.compileTask.exec(
+	"tsc --outDir types --declaration --emitDeclarationOnly",
+);
+
+new Vitest(project);
 
 project.synth();

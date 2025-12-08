@@ -1,6 +1,7 @@
 /**
  * Tests for Zod schema integration
  */
+import { describe, expect, test, vi } from "vitest";
 import { z } from "zod";
 import { StreamRouter } from "../src/stream-router";
 import { createStreamEvent, createStreamRecord } from "./test-utils";
@@ -8,7 +9,7 @@ import { createStreamEvent, createStreamRecord } from "./test-utils";
 describe("Zod Schema Integration", () => {
 	test("INSERT event processing with Zod schema", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const UserSchema = z.object({
 			pk: z.string(),
@@ -47,7 +48,7 @@ describe("Zod Schema Integration", () => {
 
 	test("Zod schema validation rejects invalid records", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const UserSchema = z.object({
 			pk: z.string(),
@@ -83,7 +84,7 @@ describe("Zod Schema Integration", () => {
 
 	test("Zod schema with MODIFY event", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const OrderSchema = z.object({
 			pk: z.string(),
@@ -127,7 +128,7 @@ describe("Zod Schema Integration", () => {
 
 	test("Zod schema with REMOVE event", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const ProductSchema = z.object({
 			pk: z.string(),
@@ -169,8 +170,8 @@ describe("Zod Schema Integration", () => {
 
 	test("Multiple Zod schemas matching different entity types", async () => {
 		const router = new StreamRouter();
-		const userHandler = jest.fn();
-		const orderHandler = jest.fn();
+		const userHandler = vi.fn();
+		const orderHandler = vi.fn();
 
 		const UserSchema = z.object({
 			pk: z.string().startsWith("USER#"),

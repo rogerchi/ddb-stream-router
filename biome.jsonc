@@ -25,7 +25,8 @@
       "!.projen/files.json",
       "!.projen/tasks.json",
       "!tsconfig.dev.json",
-      "!tsconfig.json"
+      "!tsconfig.json",
+      "!vitest.config.ts"
     ]
   },
   "formatter": {

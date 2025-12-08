@@ -5,12 +5,12 @@ export {
 	diffAttributes,
 	getNestedValue,
 	hasAttributeChange,
-} from "./attribute-diff";
-export { ConfigurationError } from "./errors";
-export type { UnmarshalledRecord } from "./middleware";
-export { unmarshallMiddleware } from "./middleware";
-export { createSQSClient } from "./sqs-adapter";
-export { HandlerRegistration, StreamRouter } from "./stream-router";
+} from "./attribute-diff.js";
+export { ConfigurationError } from "./errors.js";
+export type { UnmarshalledRecord } from "./middleware.js";
+export { unmarshallMiddleware } from "./middleware.js";
+export { createSQSClient } from "./sqs-adapter.js";
+export { HandlerRegistration, StreamRouter } from "./stream-router.js";
 // Type exports
 export type {
 	AttributeChangeType,
@@ -42,4 +42,4 @@ export type {
 	SQSClient,
 	StreamRouterOptions,
 	StreamViewType,
-} from "./types";
+} from "./types.js";

@@ -6,8 +6,8 @@ import type {
 	DynamoDBStreamEvent,
 	AttributeValue as LambdaAttributeValue,
 } from "aws-lambda";
-import { diffAttributes, hasAttributeChange } from "./attribute-diff";
-import { ConfigurationError } from "./errors";
+import { diffAttributes, hasAttributeChange } from "./attribute-diff.js";
+import { ConfigurationError } from "./errors.js";
 import type {
 	AttributeChangeType,
 	BatchHandlerOptions,
@@ -35,7 +35,7 @@ import type {
 	SQSClient,
 	StreamRouterOptions,
 	StreamViewType,
-} from "./types";
+} from "./types.js";
 
 const VALID_STREAM_VIEW_TYPES: StreamViewType[] = [
 	"KEYS_ONLY",

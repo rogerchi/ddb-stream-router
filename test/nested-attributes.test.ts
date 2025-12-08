@@ -1,6 +1,7 @@
 /**
  * Tests for nested attribute change detection with dot notation
  */
+import { describe, expect, it } from "vitest";
 import {
 	diffAttributes,
 	getNestedValue,

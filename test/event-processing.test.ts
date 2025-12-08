@@ -1,6 +1,8 @@
 /**
  * Tests for basic event processing (INSERT, MODIFY, REMOVE)
  */
+
+import { describe, expect, test, vi } from "vitest";
 import { StreamRouter } from "../src/stream-router";
 import { createStreamEvent, createStreamRecord } from "./test-utils";
 
@@ -8,7 +10,7 @@ describe("Event Processing", () => {
 	describe("INSERT Events", () => {
 		test("INSERT event processing with discriminator", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string; sk: string } =>
 				typeof record === "object" &&
@@ -40,7 +42,7 @@ describe("Event Processing", () => {
 
 		test("INSERT event processing with parser (Zod-like)", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const userParser = {
 				parse: (data: unknown) =>
@@ -84,7 +86,7 @@ describe("Event Processing", () => {
 	describe("MODIFY Events", () => {
 		test("MODIFY event processing with attribute filter", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isUser = (
 				record: unknown,
@@ -121,7 +123,7 @@ describe("Event Processing", () => {
 
 		test("MODIFY event with oldImage and newImage", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
@@ -150,7 +152,7 @@ describe("Event Processing", () => {
 	describe("REMOVE Events", () => {
 		test("REMOVE event processing with discriminator", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isUser = (
 				record: unknown,
@@ -184,8 +186,8 @@ describe("Event Processing", () => {
 	describe("Multiple Handlers", () => {
 		test("Multiple handlers matching same INSERT record both execute", async () => {
 			const router = new StreamRouter();
-			const handler1 = jest.fn();
-			const handler2 = jest.fn();
+			const handler1 = vi.fn();
+			const handler2 = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -219,8 +221,8 @@ describe("Event Processing", () => {
 
 		test("Multiple handlers matching same MODIFY record both execute", async () => {
 			const router = new StreamRouter();
-			const handler1 = jest.fn();
-			const handler2 = jest.fn();
+			const handler1 = vi.fn();
+			const handler2 = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -265,8 +267,8 @@ describe("Event Processing", () => {
 
 		test("Multiple handlers matching same REMOVE record both execute", async () => {
 			const router = new StreamRouter();
-			const handler1 = jest.fn();
-			const handler2 = jest.fn();
+			const handler1 = vi.fn();
+			const handler2 = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -334,9 +336,9 @@ describe("Event Processing", () => {
 
 		test("Mixed event types in single batch", async () => {
 			const router = new StreamRouter();
-			const insertHandler = jest.fn();
-			const modifyHandler = jest.fn();
-			const removeHandler = jest.fn();
+			const insertHandler = vi.fn();
+			const modifyHandler = vi.fn();
+			const removeHandler = vi.fn();
 
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
@@ -377,7 +379,7 @@ describe("Event Processing", () => {
 	describe("Stream View Types", () => {
 		test("KEYS_ONLY stream view type", async () => {
 			const router = new StreamRouter({ streamViewType: "KEYS_ONLY" });
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isAny = (_record: unknown): _record is Record<string, unknown> =>
 				true;
@@ -400,7 +402,7 @@ describe("Event Processing", () => {
 
 		test("NEW_IMAGE stream view type", async () => {
 			const router = new StreamRouter({ streamViewType: "NEW_IMAGE" });
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
@@ -423,7 +425,7 @@ describe("Event Processing", () => {
 
 		test("OLD_IMAGE stream view type for REMOVE", async () => {
 			const router = new StreamRouter({ streamViewType: "OLD_IMAGE" });
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
@@ -449,7 +451,7 @@ describe("Event Processing", () => {
 			const router = new StreamRouter({
 				streamViewType: "NEW_AND_OLD_IMAGES",
 			});
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
@@ -477,7 +479,7 @@ describe("Event Processing", () => {
 describe("Handler Getters", () => {
 	test("streamHandler returns a function that processes events with batch failures", async () => {
 		const router = new StreamRouter();
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
@@ -507,7 +509,7 @@ describe("Handler Getters", () => {
 		const router = new StreamRouter({
 			deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
 		});
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
@@ -547,7 +549,7 @@ describe("Handler Getters", () => {
 
 	test("streamHandler respects reportBatchItemFailures: false", async () => {
 		const router = new StreamRouter({ reportBatchItemFailures: false });
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
@@ -589,11 +591,11 @@ describe("Handler Getters", () => {
 describe("Logger", () => {
 	test("logger.debug is called during processing when logger is provided", async () => {
 		const mockLogger = {
-			debug: jest.fn(),
+			debug: vi.fn(),
 		};
 
 		const router = new StreamRouter({ logger: mockLogger });
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
@@ -622,7 +624,7 @@ describe("Logger", () => {
 
 	test("no errors when logger is not provided", async () => {
 		const router = new StreamRouter(); // No logger
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
@@ -642,11 +644,11 @@ describe("Logger", () => {
 
 	test("logger receives data object with context", async () => {
 		const mockLogger = {
-			debug: jest.fn(),
+			debug: vi.fn(),
 		};
 
 		const router = new StreamRouter({ logger: mockLogger });
-		const handler = jest.fn();
+		const handler = vi.fn();
 
 		const isUser = (record: unknown): record is { pk: string } =>
 			typeof record === "object" && record !== null && "pk" in record;
@@ -667,6 +669,6 @@ describe("Logger", () => {
 			(call) => call[0] === "Processing DynamoDB stream event",
 		);
 		expect(eventCall).toBeDefined();
-		expect(eventCall[1]).toHaveProperty("recordCount", 1);
+		expect(eventCall?.[1]).toHaveProperty("recordCount", 1);
 	});
 });

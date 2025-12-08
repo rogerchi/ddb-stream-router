@@ -1,8 +1,10 @@
 /**
  * Tests for deferred processing with SQS
  */
+
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { mockClient } from "aws-sdk-client-mock";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createSQSClient } from "../src/sqs-adapter";
 import { StreamRouter } from "../src/stream-router";
 import type { DeferredRecordMessage } from "../src/types";
@@ -31,7 +33,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
 				record !== null &&
@@ -80,7 +82,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
@@ -117,7 +119,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
@@ -154,7 +156,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
@@ -189,7 +191,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
@@ -221,8 +223,8 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler1 = jest.fn();
-			const handler2 = jest.fn();
+			const handler1 = vi.fn();
+			const handler2 = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -273,8 +275,8 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const deferredHandler = jest.fn();
-			const immediateHandler = jest.fn();
+			const deferredHandler = vi.fn();
+			const immediateHandler = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -319,7 +321,7 @@ describe("Deferred Processing with SQS", () => {
 			});
 
 			// Register a handler but use a different ID in the message
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" && record !== null;
 
@@ -363,7 +365,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" && record !== null;
 
@@ -405,7 +407,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
 				record !== null &&
@@ -454,7 +456,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn().mockImplementation(() => {
+			const handler = vi.fn().mockImplementation(() => {
 				throw new Error("Handler failed");
 			});
 			const isAny = (record: unknown): record is Record<string, unknown> =>
@@ -510,7 +512,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isAny = (record: unknown): record is Record<string, unknown> =>
 				typeof record === "object" && record !== null;
 
@@ -549,7 +551,7 @@ describe("Deferred Processing with SQS", () => {
 			});
 
 			let callCount = 0;
-			const handler = jest.fn().mockImplementation(() => {
+			const handler = vi.fn().mockImplementation(() => {
 				callCount++;
 				// Fail on second call only
 				if (callCount === 2) {
@@ -615,7 +617,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
 				record !== null &&
@@ -672,7 +674,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn();
+			const handler = vi.fn();
 			const isAudit = (
 				record: unknown,
 			): record is { pk: string; userId: string } =>
@@ -743,7 +745,7 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const handler = jest.fn().mockImplementation(() => {
+			const handler = vi.fn().mockImplementation(() => {
 				throw new Error("Batch handler failed");
 			});
 			const isUser = (record: unknown): record is { pk: string } =>
@@ -801,8 +803,8 @@ describe("Deferred Processing with SQS", () => {
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
 
-			const batchHandler = jest.fn();
-			const nonBatchHandler = jest.fn();
+			const batchHandler = vi.fn();
+			const nonBatchHandler = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -989,7 +991,7 @@ describe("Deferred Processing with SQS", () => {
 			// Use the same explicit ID in both router instances
 			const sharedDeferredId = "user-insert-handler";
 
-			const userHandler = jest.fn();
+			const userHandler = vi.fn();
 
 			// First router instance - enqueues to SQS
 			const streamRouter = new StreamRouter({
@@ -1024,7 +1026,7 @@ describe("Deferred Processing with SQS", () => {
 					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
 				sqsClient: createSqsClientAdapter(sqsClient),
 			});
-			const sqsHandler = jest.fn();
+			const sqsHandler = vi.fn();
 			sqsRouter.onInsert(isUser, sqsHandler).defer(sharedDeferredId);
 
 			// Verify the handler IDs match
@@ -1056,8 +1058,8 @@ describe("Deferred Processing with SQS", () => {
 			});
 
 			// Create two handlers that would BOTH match the same record
-			const targetHandler = jest.fn();
-			const otherHandler = jest.fn();
+			const targetHandler = vi.fn();
+			const otherHandler = vi.fn();
 
 			// Both discriminators match records with pk starting with "user#"
 			const isUser = (record: unknown): record is { pk: string } =>

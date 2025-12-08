@@ -1,6 +1,8 @@
 /**
  * Integration tests for batch processing
  */
+import { describe, expect, test, vi } from "vitest";
+
 import { StreamRouter } from "../src/stream-router";
 import { createStreamEvent, createStreamRecord } from "./test-utils";
 
@@ -8,7 +10,7 @@ describe("Batch Processing", () => {
 	describe("Basic Batch Mode", () => {
 		test("batch handler receives array of all matching INSERT records", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isUser = (
 				record: unknown,
@@ -51,7 +53,7 @@ describe("Batch Processing", () => {
 
 		test("batch handler receives array of all matching MODIFY records with oldImage and newImage", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isOrder = (
 				record: unknown,
@@ -96,7 +98,7 @@ describe("Batch Processing", () => {
 
 		test("batch handler receives array of all matching REMOVE records with oldImage", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isProduct = (
 				record: unknown,
@@ -137,7 +139,7 @@ describe("Batch Processing", () => {
 	describe("Batch Key Grouping", () => {
 		test("batchKey string groups records by attribute value", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isAuditLog = (
 				record: unknown,
@@ -185,7 +187,7 @@ describe("Batch Processing", () => {
 
 		test("PrimaryKeyConfig partitionKey groups by partition key", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isItem = (
 				record: unknown,
@@ -231,7 +233,7 @@ describe("Batch Processing", () => {
 
 		test("PrimaryKeyConfig with sortKey groups by composite key", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isItem = (
 				record: unknown,
@@ -288,7 +290,7 @@ describe("Batch Processing", () => {
 
 		test("batchKey function allows custom grouping logic", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn();
+			const handler = vi.fn();
 
 			const isEvent = (
 				record: unknown,
@@ -340,7 +342,7 @@ describe("Batch Processing", () => {
 	describe("Batch Handler Errors", () => {
 		test("batch handler error is captured in processing result", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn().mockImplementation(() => {
+			const handler = vi.fn().mockImplementation(() => {
 				throw new Error("Batch processing failed");
 			});
 
@@ -379,7 +381,7 @@ describe("Batch Processing", () => {
 
 		test("batch handler error with non-Error thrown is wrapped", async () => {
 			const router = new StreamRouter();
-			const handler = jest.fn().mockImplementation(() => {
+			const handler = vi.fn().mockImplementation(() => {
 				throw "String error"; // Non-Error thrown
 			});
 
@@ -405,8 +407,8 @@ describe("Batch Processing", () => {
 
 		test("multiple batch handlers with one failing", async () => {
 			const router = new StreamRouter();
-			const successHandler = jest.fn();
-			const failHandler = jest.fn().mockImplementation(() => {
+			const successHandler = vi.fn();
+			const failHandler = vi.fn().mockImplementation(() => {
 				throw new Error("Handler 2 failed");
 			});
 
@@ -457,8 +459,8 @@ describe("Batch Processing", () => {
 	describe("Mixed Batch and Non-Batch Handlers", () => {
 		test("batch and non-batch handlers can coexist", async () => {
 			const router = new StreamRouter();
-			const batchHandler = jest.fn();
-			const immediateHandler = jest.fn();
+			const batchHandler = vi.fn();
+			const immediateHandler = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&
@@ -498,8 +500,8 @@ describe("Batch Processing", () => {
 
 		test("batch handlers only collect matching records", async () => {
 			const router = new StreamRouter();
-			const userHandler = jest.fn();
-			const orderHandler = jest.fn();
+			const userHandler = vi.fn();
+			const orderHandler = vi.fn();
 
 			const isUser = (record: unknown): record is { pk: string } =>
 				typeof record === "object" &&

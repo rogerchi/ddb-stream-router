@@ -7,7 +7,9 @@
  * - OLD_IMAGE: Only the old item state
  * - NEW_AND_OLD_IMAGES: Both old and new states (default)
  */
+
 import type { DynamoDBRecord, DynamoDBStreamEvent } from "aws-lambda";
+import { describe, expect, it } from "vitest";
 import { StreamRouter } from "../src";
 
 // Helper to create records with specific stream view type data
