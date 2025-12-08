@@ -1,8 +1,18 @@
 import { typescript } from "projen";
+import { NpmAccess } from "projen/lib/javascript";
 
 const project = new typescript.TypeScriptProject({
 	defaultReleaseBranch: "main",
-	name: "ddb-stream-router",
+	name: "@rogerchi/ddb-stream-router",
+	authorEmail: "roger@rogerchi.com",
+	authorName: "Roger Chi",
+	releaseToNpm: true,
+	repository: "github:rogerchi/ddb-stream-router",
+	npmAccess: NpmAccess.PUBLIC,
+	description:
+		"Express-like routing for DynamoDB Streams with type-safe handlers, validation, attribute filtering, batch processing, and SQS deferral",
+	docgen: true,
+	keywords: ["aws-sdk", "dynamodb"],
 	projenrcTs: true,
 	biome: true,
 	deps: ["@aws-sdk/util-dynamodb"],

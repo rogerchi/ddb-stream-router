@@ -9,15 +9,17 @@ import type { SQSClient } from "./types";
 /**
  * Interface matching the AWS SDK v3 SQSClient's send method signature.
  * This allows the adapter to work with the real SQSClient without importing it.
+ * @internal
  */
-interface AWSSQSClient {
+export interface AWSSQSClient {
 	send(command: unknown): Promise<unknown>;
 }
 
 /**
  * Interface matching the AWS SDK v3 SendMessageCommand constructor.
+ * @internal
  */
-interface SendMessageCommandConstructor {
+export interface SendMessageCommandConstructor {
 	new (input: {
 		QueueUrl: string;
 		MessageBody: string;

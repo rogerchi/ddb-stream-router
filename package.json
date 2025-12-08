@@ -1,5 +1,10 @@
 {
-  "name": "ddb-stream-router",
+  "name": "@rogerchi/ddb-stream-router",
+  "description": "Express-like routing for DynamoDB Streams with type-safe handlers, validation, attribute filtering, batch processing, and SQS deferral",
+  "repository": {
+    "type": "git",
+    "url": "github:rogerchi/ddb-stream-router"
+  },
   "scripts": {
     "biome": "npx projen biome",
     "build": "npx projen build",
@@ -7,6 +12,7 @@
     "clobber": "npx projen clobber",
     "compile": "npx projen compile",
     "default": "npx projen default",
+    "docgen": "npx projen docgen",
     "eject": "npx projen eject",
     "integ:deploy": "npx projen integ:deploy",
     "integ:destroy": "npx projen integ:destroy",
@@ -22,6 +28,11 @@
     "upgrade": "npx projen upgrade",
     "watch": "npx projen watch",
     "projen": "npx projen"
+  },
+  "author": {
+    "name": "Roger Chi",
+    "email": "roger@rogerchi.com",
+    "organization": false
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.946.0",
@@ -42,6 +53,7 @@
     "projen": "^0.98.28",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
+    "typedoc": "^0.28.15",
     "typescript": "^5.9.3",
     "zod": "^4.1.13"
   },
@@ -52,6 +64,10 @@
   "dependencies": {
     "@aws-sdk/util-dynamodb": "^3.946.0"
   },
+  "keywords": [
+    "aws-sdk",
+    "dynamodb"
+  ],
   "main": "lib/index.js",
   "license": "Apache-2.0",
   "publishConfig": {
