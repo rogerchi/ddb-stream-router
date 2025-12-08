@@ -95,7 +95,10 @@
           "exec": "swc src -d cjs -C module.type=commonjs"
         },
         {
-          "exec": "tsc --outDir types --declaration --emitDeclarationOnly"
+          "exec": "tsc --outDir esm --declaration --emitDeclarationOnly"
+        },
+        {
+          "exec": "tsc --outDir cjs --declaration --emitDeclarationOnly"
         },
         {
           "exec": "echo '{\"type\": \"commonjs\"}' > cjs/package.json"
@@ -199,6 +202,32 @@
       "description": "Prepare a release from \"main\" branch",
       "env": {
         "RELEASE": "true"
+      },
+      "steps": [
+        {
+          "exec": "rm -fr dist"
+        },
+        {
+          "spawn": "bump"
+        },
+        {
+          "spawn": "build"
+        },
+        {
+          "spawn": "unbump"
+        },
+        {
+          "exec": "git diff --ignore-space-at-eol --exit-code"
+        }
+      ]
+    },
+    "release:beta": {
+      "name": "release:beta",
+      "description": "Prepare a release from \"beta\" branch",
+      "env": {
+        "RELEASE": "true",
+        "MAJOR": "0",
+        "PRERELEASE": "beta"
       },
       "steps": [
         {

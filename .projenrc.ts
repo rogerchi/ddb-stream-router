@@ -47,6 +47,13 @@ const project = new typescript.TypeScriptProject({
 	},
 	entrypointTypes: "types/index.d.ts",
 	minNodeVersion: "24",
+	releaseBranches: {
+		beta: {
+			prerelease: "beta",
+			majorVersion: 0,
+			npmDistTag: "beta",
+		},
+	},
 });
 
 project.defaultTask?.reset(
@@ -91,17 +98,17 @@ project.gitignore?.addPatterns(
 );
 
 project.addFields({
-	files: ["esm", "cjs", "types"],
-	main: "./cjs/index.cjs",
+	files: ["esm", "cjs"],
+	main: "./cjs/index.js",
 	exports: {
 		".": {
 			import: {
-				types: "./types/index.d.ts",
+				types: "./esm/index.d.ts",
 				default: "./esm/index.js",
 			},
 			require: {
-				types: "./types/index.d.ts",
-				default: "./cjs/index.cjs",
+				types: "./cjs/index.d.ts",
+				default: "./cjs/index.js",
 			},
 		},
 		"./*": {
@@ -116,7 +123,10 @@ project.compileTask.reset();
 project.compileTask.exec("swc src -d esm -C module.type=es6");
 project.compileTask.exec("swc src -d cjs -C module.type=commonjs");
 project.compileTask.exec(
-	"tsc --outDir types --declaration --emitDeclarationOnly",
+	"tsc --outDir esm --declaration --emitDeclarationOnly",
+);
+project.compileTask.exec(
+	"tsc --outDir cjs --declaration --emitDeclarationOnly",
 );
 // write {"type": "commonjs"} to cjs/package.json
 project.compileTask.exec('echo \'{"type": "commonjs"}\' > cjs/package.json');
