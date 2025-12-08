@@ -71,7 +71,7 @@
   "engines": {
     "node": ">= 24"
   },
-  "main": "./cjs/index.js",
+  "main": "./cjs/index.cjs",
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
@@ -91,7 +91,7 @@
       },
       "require": {
         "types": "./types/index.d.ts",
-        "default": "./cjs/index.js"
+        "default": "./cjs/index.cjs"
       }
     },
     "./*": {
