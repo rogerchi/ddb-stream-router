@@ -92,7 +92,7 @@ project.gitignore?.addPatterns(
 
 project.addFields({
 	files: ["esm", "cjs", "types"],
-	main: "./cjs/index.cjs",
+	main: "./cjs/index.js",
 	exports: {
 		".": {
 			import: {
@@ -101,7 +101,7 @@ project.addFields({
 			},
 			require: {
 				types: "./types/index.d.ts",
-				default: "./cjs/index.cjs",
+				default: "./cjs/index.js",
 			},
 		},
 		"./*": {
