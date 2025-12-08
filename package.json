@@ -78,7 +78,7 @@
     "access": "public"
   },
   "version": "0.0.0",
-  "types": "types/index.d.ts",
+  "types": "esm/index.d.ts",
   "files": [
     "esm",
     "cjs"

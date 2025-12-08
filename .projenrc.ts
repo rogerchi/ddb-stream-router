@@ -45,7 +45,7 @@ const project = new typescript.TypeScriptProject({
 			isolatedModules: true,
 		},
 	},
-	entrypointTypes: "types/index.d.ts",
+	entrypointTypes: "esm/index.d.ts",
 	minNodeVersion: "24",
 	releaseBranches: {
 		beta: {
