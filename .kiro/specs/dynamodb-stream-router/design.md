@@ -16,7 +16,7 @@ Key design goals:
 ## Usage Example
 
 ```typescript
-import { StreamRouter } from 'ddb-stream-router';
+import { StreamRouter } from '@rogerchi/ddb-stream-router';
 import { z } from 'zod';
 
 const userSchema = z.object({ id: z.string(), email: z.string() });
@@ -295,7 +295,7 @@ The library exports utility middleware functions for common operations:
 ```typescript
 // Unmarshall middleware - converts DynamoDB JSON to native JS objects
 // Can be used instead of or in addition to the constructor option
-import { unmarshallMiddleware } from 'ddb-stream-router';
+import { unmarshallMiddleware } from '@rogerchi/ddb-stream-router';
 
 const router = new StreamRouter({ unmarshall: false }); // Disable built-in unmarshalling
 router.use(unmarshallMiddleware()); // Use middleware instead for more control

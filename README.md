@@ -30,7 +30,7 @@ npm install @aws-sdk/util-dynamodb @aws-sdk/client-sqs
 ## Quick Start
 
 ```typescript
-import { StreamRouter } from 'ddb-stream-router';
+import { StreamRouter } from '@rogerchi/ddb-stream-router';
 import type { DynamoDBStreamHandler } from 'aws-lambda';
 
 interface User {
@@ -85,7 +85,7 @@ For MODIFY events, the **newImage** is used for matching because you typically w
 
 ```typescript
 import { z } from 'zod';
-import { StreamRouter } from 'ddb-stream-router';
+import { StreamRouter } from '@rogerchi/ddb-stream-router';
 
 const UserSchema = z.object({
   pk: z.string().startsWith('USER#'),
@@ -240,7 +240,7 @@ Offload heavy processing to SQS:
 
 ```typescript
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
-import { StreamRouter, createSQSClient } from 'ddb-stream-router';
+import { StreamRouter, createSQSClient } from '@rogerchi/ddb-stream-router';
 
 const router = new StreamRouter({
   deferQueue: process.env.DEFER_QUEUE_URL,
