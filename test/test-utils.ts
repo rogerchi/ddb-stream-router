@@ -11,6 +11,7 @@ export function createStreamRecord(
 	keys: Record<string, unknown>,
 	newImage?: Record<string, unknown>,
 	oldImage?: Record<string, unknown>,
+	userIdentity?: { type: string; principalId: string },
 ): DynamoDBRecord {
 	const toAttributeValue = (
 		obj: Record<string, unknown> | undefined,
@@ -30,7 +31,7 @@ export function createStreamRecord(
 		return result;
 	};
 
-	return {
+	const record: DynamoDBRecord = {
 		eventID: `event_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
 		eventName,
 		eventVersion: "1.1",
@@ -52,6 +53,17 @@ export function createStreamRecord(
 			StreamViewType: "NEW_AND_OLD_IMAGES",
 		},
 	} as DynamoDBRecord;
+
+	// Add userIdentity if provided
+	if (userIdentity) {
+		(
+			record as DynamoDBRecord & {
+				userIdentity: { type: string; principalId: string };
+			}
+		).userIdentity = userIdentity;
+	}
+
+	return record;
 }
 
 export function createStreamEvent(

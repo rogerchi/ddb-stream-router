@@ -60,6 +60,11 @@ export interface ModifyHandlerOptions {
 	changeType?: AttributeChangeType | AttributeChangeType[];
 }
 
+// Options for remove handlers
+export interface RemoveHandlerOptions {
+	excludeTTL?: boolean; // When true, excludes TTL-triggered removals (default: false)
+}
+
 // Generic handler options
 export interface HandlerOptions {
 	batch?: boolean; // When true, handler receives all matching records as array
@@ -133,10 +138,14 @@ export type HandlerFunction = (...args: unknown[]) => void | Promise<void>;
 // Internal handler registration
 export interface RegisteredHandler<T = unknown> {
 	id: string;
-	eventType: "INSERT" | "MODIFY" | "REMOVE";
+	eventType: "INSERT" | "MODIFY" | "REMOVE" | "TTL_REMOVE";
 	matcher: Matcher<T>;
 	handler: HandlerFunction;
-	options: HandlerOptions | ModifyHandlerOptions | BatchHandlerOptions;
+	options:
+		| HandlerOptions
+		| ModifyHandlerOptions
+		| RemoveHandlerOptions
+		| BatchHandlerOptions;
 	isParser: boolean;
 	deferred?: boolean; // Whether this handler is deferred to SQS
 	deferOptions?: DeferOptions; // Defer configuration for this handler
@@ -200,6 +209,9 @@ export type RemoveHandler<T, V extends StreamViewType> = V extends "KEYS_ONLY"
 			? (newImage: undefined, ctx: HandlerContext) => void | Promise<void>
 			: never;
 
+// TTLRemove handler has the same signature as RemoveHandler (both process removal events)
+export type TTLRemoveHandler<T, V extends StreamViewType> = RemoveHandler<T, V>;
+
 // Batch handler signatures - receive arrays of records
 export type BatchInsertHandler<
 	T,
@@ -239,3 +251,9 @@ export type BatchRemoveHandler<
 				records: Array<{ oldImage: T; ctx: HandlerContext }>,
 			) => void | Promise<void>
 		: never;
+
+// BatchTTLRemoveHandler has the same signature as BatchRemoveHandler
+export type BatchTTLRemoveHandler<
+	T,
+	V extends StreamViewType,
+> = BatchRemoveHandler<T, V>;

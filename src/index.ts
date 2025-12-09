@@ -20,6 +20,7 @@ export type {
 	BatchItemFailuresResponse,
 	BatchModifyHandler,
 	BatchRemoveHandler,
+	BatchTTLRemoveHandler,
 	DeferOptions,
 	DeferredRecordMessage,
 	DiffResult,
@@ -39,7 +40,9 @@ export type {
 	ProcessOptions,
 	RegisteredHandler,
 	RemoveHandler,
+	RemoveHandlerOptions,
 	SQSClient,
 	StreamRouterOptions,
 	StreamViewType,
+	TTLRemoveHandler,
 } from "./types.js";
