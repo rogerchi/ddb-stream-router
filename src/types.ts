@@ -55,27 +55,6 @@ export type AttributeChangeType =
         | "remove_item_from_collection"
         | "changed_item_in_collection";
 
-// Options for modify handlers
-export interface ModifyHandlerOptions {
-        attribute?: string;
-        changeType?: AttributeChangeType | AttributeChangeType[];
-        /**
-         * Match when the attribute's new value equals this value.
-         * Works with any attribute type. Comparison uses deep equality.
-         */
-        newFieldValue?: unknown;
-        /**
-         * Match when the attribute's old value equals this value.
-         * Works with any attribute type. Comparison uses deep equality.
-         */
-        oldFieldValue?: unknown;
-}
-
-// Options for remove handlers
-export interface RemoveHandlerOptions {
-        excludeTTL?: boolean; // When true, excludes TTL-triggered removals (default: false)
-}
-
 // Validation target for discriminator/parser matching
 export type ValidationTarget = "oldImage" | "newImage" | "both";
 
@@ -92,6 +71,27 @@ export interface HandlerOptions {
          * If the requested image is not available, validation will fail gracefully.
          */
         validationTarget?: ValidationTarget;
+}
+
+// Options for modify handlers
+export interface ModifyHandlerOptions extends HandlerOptions {
+        attribute?: string;
+        changeType?: AttributeChangeType | AttributeChangeType[];
+        /**
+         * Match when the attribute's new value equals this value.
+         * Works with any attribute type. Comparison uses deep equality.
+         */
+        newFieldValue?: unknown;
+        /**
+         * Match when the attribute's old value equals this value.
+         * Works with any attribute type. Comparison uses deep equality.
+         */
+        oldFieldValue?: unknown;
+}
+
+// Options for remove handlers
+export interface RemoveHandlerOptions extends HandlerOptions {
+        excludeTTL?: boolean; // When true, excludes TTL-triggered removals (default: false)
 }
 
 // Primary key configuration for batch grouping
