@@ -2,10 +2,10 @@
  * Tests for TTL removal event handling
  */
 
+import type { DynamoDBRecord } from "aws-lambda";
 import { describe, expect, test, vi } from "vitest";
 import { StreamRouter } from "../src/stream-router";
 import { createStreamEvent, createStreamRecord } from "./test-utils";
-import type { DynamoDBRecord } from "aws-lambda";
 
 /**
  * Helper to create a TTL removal record
@@ -41,11 +41,7 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const ttlHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, ttlHandler);
 
@@ -72,11 +68,7 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const ttlHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, ttlHandler);
 
@@ -98,11 +90,7 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const batchHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, batchHandler, { batch: true });
 
@@ -182,11 +170,7 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			router.onRemove(isUser, removeHandler, { excludeTTL: true });
 
@@ -220,11 +204,7 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			// Default behavior - excludeTTL is false
 			router.onRemove(isUser, removeHandler);
@@ -255,11 +235,7 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			router.onRemove(isUser, removeHandler, { excludeTTL: false });
 
@@ -284,11 +260,7 @@ describe("TTL Removal Events", () => {
 			const ttlHandler = vi.fn();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			// Register handler for TTL removals only
 			router.onTTLRemove(isUser, ttlHandler);
@@ -412,11 +384,7 @@ describe("TTL Removal Events", () => {
 			const ttlHandler = vi.fn();
 			const insertHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record &&
-				typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, ttlHandler).onInsert(isUser, insertHandler);
 
@@ -450,10 +418,7 @@ describe("TTL Removal Events", () => {
 			});
 			const ttlHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } =>
-				typeof record === "object" &&
-				record !== null &&
-				"pk" in record;
+			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record;
 
 			// Should not throw
 			expect(() => {
