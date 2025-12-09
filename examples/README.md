@@ -25,6 +25,9 @@ Handling DynamoDB Global Tables with same-region filtering.
 ### [attribute-filtering.ts](./attribute-filtering.ts)
 Filtering MODIFY events based on specific attribute changes.
 
+### [value-based-filtering.ts](./value-based-filtering.ts)
+Advanced filtering based on specific field values (old and new) and detecting when fields are cleared.
+
 ## Running Examples
 
 These examples are TypeScript files meant to be used as Lambda handlers. They demonstrate patterns and are not meant to be run directly.

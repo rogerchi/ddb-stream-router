@@ -6,7 +6,12 @@ import type {
 	DynamoDBStreamEvent,
 	AttributeValue as LambdaAttributeValue,
 } from "aws-lambda";
-import { diffAttributes, hasAttributeChange } from "./attribute-diff.js";
+import {
+	diffAttributes,
+	hasAttributeChange,
+	getNestedValue,
+	deepEqual,
+} from "./attribute-diff.js";
 import { ConfigurationError } from "./errors.js";
 import type {
 	AttributeChangeType,
@@ -681,8 +686,23 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		const options = handler.options as ModifyHandlerOptions;
 
 		// No attribute filter specified - match all MODIFY events
-		if (!options.attribute) {
+		if (
+			!options.attribute &&
+			!options.oldFieldValue &&
+			!options.newFieldValue
+		) {
 			return true;
+		}
+
+		// If only value filters are specified (without attribute), we cannot match
+		// as we need to know which attribute to check
+		if (
+			!options.attribute &&
+			(options.oldFieldValue !== undefined ||
+				options.newFieldValue !== undefined)
+		) {
+			// Value filters require an attribute to be specified
+			return false;
 		}
 
 		// Compute the diff between old and new images
@@ -691,11 +711,41 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		// Check if the specified attribute has the required change type(s)
 		const changeTypes = options.changeType;
 
-		return hasAttributeChange(
+		const hasChange = hasAttributeChange(
 			diff,
-			options.attribute,
+			options.attribute!,
 			changeTypes as AttributeChangeType | AttributeChangeType[] | undefined,
 		);
+
+		// If no change detected, no match
+		if (!hasChange) {
+			return false;
+		}
+
+		// Check value filters if specified
+		if (
+			options.oldFieldValue !== undefined ||
+			options.newFieldValue !== undefined
+		) {
+			const oldValue = getNestedValue(oldImage, options.attribute!);
+			const newValue = getNestedValue(newImage, options.attribute!);
+
+			// Check oldFieldValue constraint
+			if (options.oldFieldValue !== undefined) {
+				if (!deepEqual(oldValue, options.oldFieldValue)) {
+					return false;
+				}
+			}
+
+			// Check newFieldValue constraint
+			if (options.newFieldValue !== undefined) {
+				if (!deepEqual(newValue, options.newFieldValue)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	/**

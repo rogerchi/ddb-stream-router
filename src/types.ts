@@ -50,6 +50,7 @@ export type AttributeChangeType =
 	| "new_attribute"
 	| "remove_attribute"
 	| "changed_attribute"
+	| "field_cleared"
 	| "new_item_in_collection"
 	| "remove_item_from_collection"
 	| "changed_item_in_collection";
@@ -58,6 +59,16 @@ export type AttributeChangeType =
 export interface ModifyHandlerOptions {
 	attribute?: string;
 	changeType?: AttributeChangeType | AttributeChangeType[];
+	/**
+	 * Match when the attribute's new value equals this value.
+	 * Works with any attribute type. Comparison uses deep equality.
+	 */
+	newFieldValue?: unknown;
+	/**
+	 * Match when the attribute's old value equals this value.
+	 * Works with any attribute type. Comparison uses deep equality.
+	 */
+	oldFieldValue?: unknown;
 }
 
 // Options for remove handlers
