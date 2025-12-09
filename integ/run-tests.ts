@@ -35,6 +35,7 @@ interface VerificationMessage {
 	sk: string;
 	timestamp: number;
 	eventId?: string;
+	handlerType?: string;
 }
 
 // Load CDK outputs
@@ -167,8 +168,8 @@ async function runTests(): Promise<void> {
 		// Small delay between operations to ensure ordering
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Operation 2: MODIFY
-		console.log(`  2. MODIFY: pk=${testPk}, sk=${testSk}`);
+		// Operation 2: MODIFY (data only - should NOT trigger status handler)
+		console.log(`  2. MODIFY (data only): pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new UpdateItemCommand({
 				TableName,
@@ -184,8 +185,25 @@ async function runTests(): Promise<void> {
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Operation 3: REMOVE
-		console.log(`  3. REMOVE: pk=${testPk}, sk=${testSk}`);
+		// Operation 3: MODIFY (status change - SHOULD trigger status handler)
+		console.log(`  3. MODIFY (status change): pk=${testPk}, sk=${testSk}`);
+		await ddbClient.send(
+			new UpdateItemCommand({
+				TableName,
+				Key: {
+					pk: { S: testPk },
+					sk: { S: testSk },
+				},
+				UpdateExpression: "SET #status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": { S: "active" } },
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Operation 4: REMOVE
+		console.log(`  4. REMOVE: pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new DeleteItemCommand({
 				TableName,
@@ -202,10 +220,12 @@ async function runTests(): Promise<void> {
 
 		// Expected messages:
 		// - INSERT immediate + INSERT deferred = 2
-		// - MODIFY immediate = 1
+		// - MODIFY immediate (data change) = 1
+		// - MODIFY immediate (status change) = 1 (modify-all handler)
+		// - MODIFY status handler (status change only) = 1
 		// - REMOVE immediate = 1
-		// Total = 4
-		const expectedMessageCount = 4;
+		// Total = 6
+		const expectedMessageCount = 6;
 
 		const allMessages = await drainVerificationQueue(
 			sqsClient,
@@ -230,8 +250,17 @@ async function runTests(): Promise<void> {
 		const insertDeferred = testMessages.filter(
 			(m) => m.operationType === "INSERT" && m.isDeferred,
 		);
-		const modifyImmediate = testMessages.filter(
-			(m) => m.operationType === "MODIFY" && !m.isDeferred,
+		const modifyAll = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-all",
+		);
+		const modifyStatusChange = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-status-change",
 		);
 		const removeImmediate = testMessages.filter(
 			(m) => m.operationType === "REMOVE" && !m.isDeferred,
@@ -239,7 +268,8 @@ async function runTests(): Promise<void> {
 
 		console.log(`  INSERT immediate: ${insertImmediate.length}`);
 		console.log(`  INSERT deferred: ${insertDeferred.length}`);
-		console.log(`  MODIFY immediate: ${modifyImmediate.length}`);
+		console.log(`  MODIFY all changes: ${modifyAll.length}`);
+		console.log(`  MODIFY status change only: ${modifyStatusChange.length}`);
 		console.log(`  REMOVE immediate: ${removeImmediate.length}`);
 
 		// Run assertions
@@ -277,18 +307,36 @@ async function runTests(): Promise<void> {
 			console.log(`  ❌ INSERT deferred: FAILED - ${(error as Error).message}`);
 		}
 
-		// Test 3: MODIFY immediate
+		// Test 3: MODIFY all changes (should fire for both data and status changes)
 		totalTests++;
 		try {
 			assert.strictEqual(
-				modifyImmediate.length,
-				1,
-				`Expected 1 immediate MODIFY, got ${modifyImmediate.length}`,
+				modifyAll.length,
+				2,
+				`Expected 2 modify-all handlers (data + status changes), got ${modifyAll.length}`,
 			);
-			console.log("  ✅ MODIFY immediate: PASSED");
+			console.log("  ✅ MODIFY all changes: PASSED");
 			passedTests++;
 		} catch (error) {
-			console.log(`  ❌ MODIFY immediate: FAILED - ${(error as Error).message}`);
+			console.log(
+				`  ❌ MODIFY all changes: FAILED - ${(error as Error).message}`,
+			);
+		}
+
+		// Test 3b: MODIFY status change only (should fire only for status change)
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyStatusChange.length,
+				1,
+				`Expected 1 modify-status-change handler (status change only), got ${modifyStatusChange.length}`,
+			);
+			console.log("  ✅ MODIFY status change targeted: PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ MODIFY status change targeted: FAILED - ${(error as Error).message}`,
+			);
 		}
 
 		// Test 4: REMOVE immediate
