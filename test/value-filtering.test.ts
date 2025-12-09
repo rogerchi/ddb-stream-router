@@ -2,7 +2,7 @@
  * Tests for value-based filtering in onModify handlers
  * Tests the new oldFieldValue, newFieldValue, and field_cleared functionality
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StreamRouter } from "../src/stream-router";
 import { createModifyEvent } from "./test-utils";
 
