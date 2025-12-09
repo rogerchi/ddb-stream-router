@@ -663,7 +663,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		oldImageData?: unknown,
 	): { matches: boolean; parsedData?: unknown; parsedOldData?: unknown } {
 		const validationTarget =
-			(handler.options as HandlerOptions).validationTarget ?? ("newImage" as const);
+			(handler.options as HandlerOptions).validationTarget ??
+			("newImage" as const);
 
 		// For "both" validation, need to validate both images
 		if (validationTarget === "both" && oldImageData !== undefined) {
@@ -1141,7 +1142,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 				let matchedHandlerCount = 0;
 				for (const handler of matchingHandlers) {
-					const validationTarget = (handler.options as HandlerOptions).validationTarget ?? "newImage";
+					const validationTarget =
+						(handler.options as HandlerOptions).validationTarget ?? "newImage";
 					const { imageData, oldImageData } = this.getMatchingImage(
 						record,
 						eventType,
@@ -1197,7 +1199,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 										handler,
 										record,
 										parsedData,
-																			parsedOldData,
+										parsedOldData,
 										ctx,
 									);
 									const batchRecords = handlerBatches.get(batchKey);
@@ -1207,9 +1209,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 								}
 							} else {
 								// Immediate execution for non-batch handlers
-								await this.invokeHandler(handler, record, parsedData,
+								await this.invokeHandler(
+									handler,
+									record,
+									parsedData,
 									parsedOldData,
-									ctx);
+									ctx,
+								);
 							}
 						}
 					}
@@ -1356,7 +1362,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				const record = message.record as DynamoDBRecord;
 				const eventType = record.eventName as "INSERT" | "MODIFY" | "REMOVE";
 				const ctx = this.buildContext(record);
-				const validationTarget = (handler.options as HandlerOptions).validationTarget ?? "newImage";
+				const validationTarget =
+					(handler.options as HandlerOptions).validationTarget ?? "newImage";
 				const { imageData, oldImageData } = this.getMatchingImage(
 					record,
 					eventType,
@@ -1400,7 +1407,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					}
 				} else {
 					// Execute non-batch handler immediately
-					await this.invokeHandler(handler, record, parsedData, parsedOldData, ctx);
+					await this.invokeHandler(
+						handler,
+						record,
+						parsedData,
+						parsedOldData,
+						ctx,
+					);
 					result.succeeded++;
 				}
 			} catch (error) {

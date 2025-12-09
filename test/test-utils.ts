@@ -86,25 +86,25 @@ export function createMockStreamEvent(
 		dynamodb: {
 			Keys: Record<string, { S?: string; N?: string; B?: string }>;
 			NewImage?: Record<
-			string,
-			{
-				S?: string;
-				N?: string;
-				B?: string;
-				L?: unknown[];
-				M?: Record<string, unknown>;
-			}
-		>;
+				string,
+				{
+					S?: string;
+					N?: string;
+					B?: string;
+					L?: unknown[];
+					M?: Record<string, unknown>;
+				}
+			>;
 			OldImage?: Record<
-			string,
-			{
-				S?: string;
-				N?: string;
-				B?: string;
-				L?: unknown[];
-				M?: Record<string, unknown>;
-			}
-		>;
+				string,
+				{
+					S?: string;
+					N?: string;
+					B?: string;
+					L?: unknown[];
+					M?: Record<string, unknown>;
+				}
+			>;
 		};
 	}>,
 ): DynamoDBStreamEvent {
