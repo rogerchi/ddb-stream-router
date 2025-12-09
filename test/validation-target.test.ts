@@ -476,7 +476,9 @@ describe("ValidationTarget Option", () => {
 							name: { S: "Super Admin" },
 							email: { S: "superadmin@example.com" },
 							role: { S: "admin" },
-							permissions: { L: [{ S: "read" }, { S: "write" }, { S: "delete" }] },
+							permissions: {
+								L: [{ S: "read" }, { S: "write" }, { S: "delete" }],
+							},
 						},
 					},
 				},
