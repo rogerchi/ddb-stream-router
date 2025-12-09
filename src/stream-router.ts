@@ -1013,15 +1013,19 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
                                 let matchingHandlers = this._handlers.filter((h) => {
                                         if (eventType === "REMOVE") {
                                                 if (isTTL) {
-                                                        // TTL removal: match TTL_REMOVE handlers
-                                                        return h.eventType === "TTL_REMOVE";
+                                                        // TTL removal: match TTL_REMOVE handlers OR REMOVE handlers without excludeTTL
+                                                        if (h.eventType === "TTL_REMOVE") {
+                                                                return true;
+                                                        }
+                                                        if (h.eventType === "REMOVE") {
+                                                                const removeOptions = h.options as RemoveHandlerOptions;
+                                                                // Include REMOVE handler if excludeTTL is false or undefined (default)
+                                                                return !removeOptions.excludeTTL;
+                                                        }
+                                                        return false;
                                                 }
-                                                // Regular removal: match REMOVE handlers, excluding those with excludeTTL=true
-                                                if (h.eventType === "REMOVE") {
-                                                        const removeOptions = h.options as RemoveHandlerOptions;
-                                                        return !removeOptions.excludeTTL;
-                                                }
-                                                return false;
+                                                // Regular removal: match only REMOVE handlers (excludeTTL doesn't apply)
+                                                return h.eventType === "REMOVE";
                                         }
                                         // For INSERT and MODIFY, simple match
                                         return h.eventType === eventType;
