@@ -17,7 +17,8 @@ export function createStreamRecord(
 		obj: Record<string, unknown> | undefined,
 	): Record<string, { S?: string; N?: string; BOOL?: boolean }> | undefined => {
 		if (!obj) return undefined;
-		const result: Record<string, { S?: string; N?: string; BOOL?: boolean }> = {};
+		const result: Record<string, { S?: string; N?: string; BOOL?: boolean }> =
+			{};
 		for (const [key, value] of Object.entries(obj)) {
 			if (typeof value === "string") {
 				result[key] = { S: value };
@@ -38,9 +39,16 @@ export function createStreamRecord(
 		awsRegion: "us-east-1",
 		eventSourceARN: `arn:aws:dynamodb:us-east-1:123456789012:table/${TABLE_NAME}/stream/2024-01-01T00:00:00.000`,
 		dynamodb: {
-			Keys: toAttributeValue(keys) as Record<string, { S?: string; N?: string }>,
-			NewImage: toAttributeValue(newImage) as Record<string, { S?: string; N?: string }> | undefined,
-			OldImage: toAttributeValue(oldImage) as Record<string, { S?: string; N?: string }> | undefined,
+			Keys: toAttributeValue(keys) as Record<
+				string,
+				{ S?: string; N?: string }
+			>,
+			NewImage: toAttributeValue(newImage) as
+				| Record<string, { S?: string; N?: string }>
+				| undefined,
+			OldImage: toAttributeValue(oldImage) as
+				| Record<string, { S?: string; N?: string }>
+				| undefined,
 			SequenceNumber: `seq_${Date.now()}`,
 			StreamViewType: "NEW_AND_OLD_IMAGES",
 		},
@@ -48,7 +56,11 @@ export function createStreamRecord(
 
 	// Add userIdentity if provided
 	if (userIdentity) {
-		(record as DynamoDBRecord & { userIdentity: { type: string; principalId: string } }).userIdentity = userIdentity;
+		(
+			record as DynamoDBRecord & {
+				userIdentity: { type: string; principalId: string };
+			}
+		).userIdentity = userIdentity;
 	}
 
 	return record;

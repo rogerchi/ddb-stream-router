@@ -41,7 +41,11 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const ttlHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, ttlHandler);
 
@@ -68,7 +72,11 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const ttlHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, ttlHandler);
 
@@ -90,7 +98,11 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const batchHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, batchHandler, { batch: true });
 
@@ -128,7 +140,8 @@ describe("TTL Removal Events", () => {
 			const handler = vi.fn();
 
 			const sessionParser = {
-				parse: (data: unknown) => data as { pk: string; sk: string; ttl: number },
+				parse: (data: unknown) =>
+					data as { pk: string; sk: string; ttl: number },
 				safeParse: (data: unknown) => {
 					if (
 						typeof data === "object" &&
@@ -170,7 +183,11 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			router.onRemove(isUser, removeHandler, { excludeTTL: true });
 
@@ -204,7 +221,11 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			// Default behavior - excludeTTL is false
 			router.onRemove(isUser, removeHandler);
@@ -235,7 +256,11 @@ describe("TTL Removal Events", () => {
 			const router = new StreamRouter();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			router.onRemove(isUser, removeHandler, { excludeTTL: false });
 
@@ -260,7 +285,11 @@ describe("TTL Removal Events", () => {
 			const ttlHandler = vi.fn();
 			const removeHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			// Register handler for TTL removals only
 			router.onTTLRemove(isUser, ttlHandler);
@@ -384,7 +413,11 @@ describe("TTL Removal Events", () => {
 			const ttlHandler = vi.fn();
 			const insertHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record && typeof (record as { pk: unknown }).pk === "string";
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" &&
+				record !== null &&
+				"pk" in record &&
+				typeof (record as { pk: unknown }).pk === "string";
 
 			router.onTTLRemove(isUser, ttlHandler).onInsert(isUser, insertHandler);
 
@@ -411,14 +444,16 @@ describe("TTL Removal Events", () => {
 
 		test("can chain defer() after onTTLRemove", () => {
 			const router = new StreamRouter({
-				deferQueue: "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
+				deferQueue:
+					"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
 				sqsClient: {
 					sendMessage: vi.fn().mockResolvedValue({}),
 				},
 			});
 			const ttlHandler = vi.fn();
 
-			const isUser = (record: unknown): record is { pk: string; sk: string } => typeof record === "object" && record !== null && "pk" in record;
+			const isUser = (record: unknown): record is { pk: string; sk: string } =>
+				typeof record === "object" && record !== null && "pk" in record;
 
 			// Should not throw
 			expect(() => {
