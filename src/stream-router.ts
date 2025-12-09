@@ -7,10 +7,10 @@ import type {
 	AttributeValue as LambdaAttributeValue,
 } from "aws-lambda";
 import {
-	diffAttributes,
-	hasAttributeChange,
-	getNestedValue,
 	deepEqual,
+	diffAttributes,
+	getNestedValue,
+	hasAttributeChange,
 } from "./attribute-diff.js";
 import { ConfigurationError } from "./errors.js";
 import type {
@@ -713,6 +713,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 		const hasChange = hasAttributeChange(
 			diff,
+			// biome-ignore lint/style/noNonNullAssertion: attribute is guaranteed to exist by earlier check
 			options.attribute!,
 			changeTypes as AttributeChangeType | AttributeChangeType[] | undefined,
 		);
@@ -727,7 +728,9 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 			options.oldFieldValue !== undefined ||
 			options.newFieldValue !== undefined
 		) {
+			// biome-ignore lint/style/noNonNullAssertion: attribute is guaranteed to exist by earlier check
 			const oldValue = getNestedValue(oldImage, options.attribute!);
+			// biome-ignore lint/style/noNonNullAssertion: attribute is guaranteed to exist by earlier check
 			const newValue = getNestedValue(newImage, options.attribute!);
 
 			// Check oldFieldValue constraint
