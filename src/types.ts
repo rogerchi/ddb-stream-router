@@ -238,46 +238,46 @@ export type TTLRemoveHandler<T, V extends StreamViewType> = RemoveHandler<T, V>;
 
 // Batch handler signatures - receive arrays of records
 export type BatchInsertHandler<
-        T,
-        V extends StreamViewType,
+	T,
+	V extends StreamViewType,
 > = V extends "KEYS_ONLY"
-        ? (
-                        records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
-                ) => void | Promise<void>
-        : V extends "NEW_IMAGE" | "NEW_AND_OLD_IMAGES"
-                ? (
-                                records: Array<{ newImage: T; ctx: HandlerContext }>,
-                        ) => void | Promise<void>
-                : never;
+	? (
+			records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+		) => void | Promise<void>
+	: V extends "NEW_IMAGE" | "NEW_AND_OLD_IMAGES"
+		? (
+				records: Array<{ newImage: T; ctx: HandlerContext }>,
+			) => void | Promise<void>
+		: never;
 
 export type BatchModifyHandler<
-        T,
-        V extends StreamViewType,
+	T,
+	V extends StreamViewType,
 > = V extends "KEYS_ONLY"
-        ? (
-                        records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
-                ) => void | Promise<void>
-        : V extends "NEW_AND_OLD_IMAGES"
-                ? (
-                                records: Array<{ oldImage: T; newImage: T; ctx: HandlerContext }>,
-                        ) => void | Promise<void>
-                : never;
+	? (
+			records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+		) => void | Promise<void>
+	: V extends "NEW_AND_OLD_IMAGES"
+		? (
+				records: Array<{ oldImage: T; newImage: T; ctx: HandlerContext }>,
+			) => void | Promise<void>
+		: never;
 
 export type BatchRemoveHandler<
-        T,
-        V extends StreamViewType,
+	T,
+	V extends StreamViewType,
 > = V extends "KEYS_ONLY"
-        ? (
-                        records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
-                ) => void | Promise<void>
-        : V extends "OLD_IMAGE" | "NEW_AND_OLD_IMAGES"
-                ? (
-                                records: Array<{ oldImage: T; ctx: HandlerContext }>,
-                        ) => void | Promise<void>
-                : never;
+	? (
+			records: Array<{ keys: Record<string, unknown>; ctx: HandlerContext }>,
+		) => void | Promise<void>
+	: V extends "OLD_IMAGE" | "NEW_AND_OLD_IMAGES"
+		? (
+				records: Array<{ oldImage: T; ctx: HandlerContext }>,
+			) => void | Promise<void>
+		: never;
 
 // BatchTTLRemoveHandler has the same signature as BatchRemoveHandler
 export type BatchTTLRemoveHandler<
-        T,
-        V extends StreamViewType,
+	T,
+	V extends StreamViewType,
 > = BatchRemoveHandler<T, V>;
