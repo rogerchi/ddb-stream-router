@@ -85,7 +85,7 @@ export function createMockStreamEvent(
 		eventName: "INSERT" | "MODIFY" | "REMOVE";
 		dynamodb: {
 			Keys: Record<string, { S?: string; N?: string; B?: string }>;
-		NewImage?: Record<
+			NewImage?: Record<
 			string,
 			{
 				S?: string;
@@ -95,7 +95,7 @@ export function createMockStreamEvent(
 				M?: Record<string, unknown>;
 			}
 		>;
-		OldImage?: Record<
+			OldImage?: Record<
 			string,
 			{
 				S?: string;

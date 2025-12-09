@@ -66,7 +66,7 @@ export interface HandlerOptions {
 	 * - "oldImage": validate only against the old image
 	 * - "newImage": validate only against the new image (default)
 	 * - "both": validate against both old and new images (both must match)
-	 * 
+	 *
 	 * Note: For INSERT events, only newImage is available. For REMOVE events, only oldImage is available.
 	 * If the requested image is not available, validation will fail gracefully.
 	 */

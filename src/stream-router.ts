@@ -1208,8 +1208,8 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 							} else {
 								// Immediate execution for non-batch handlers
 								await this.invokeHandler(handler, record, parsedData,
-																	parsedOldData,
-																	ctx);
+									parsedOldData,
+									ctx);
 							}
 						}
 					}
@@ -1387,7 +1387,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 							handler,
 							record,
 							parsedData,
-										parsedOldData,
+							parsedOldData,
 							ctx,
 						);
 						const batchRecords = handlerBatches.get(batchKey);
