@@ -1,7 +1,7 @@
 /**
  * Tests for field_cleared change type
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { diffAttributes } from "../src/attribute-diff";
 
 describe("field_cleared change type", () => {
