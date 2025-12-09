@@ -55,8 +55,26 @@ export type AttributeChangeType =
 	| "remove_item_from_collection"
 	| "changed_item_in_collection";
 
+// Validation target for discriminator/parser matching
+export type ValidationTarget = "oldImage" | "newImage" | "both";
+
+// Generic handler options
+export interface HandlerOptions {
+	batch?: boolean; // When true, handler receives all matching records as array
+	/**
+	 * Specifies which image(s) to validate the discriminator/parser against.
+	 * - "oldImage": validate only against the old image
+	 * - "newImage": validate only against the new image (default)
+	 * - "both": validate against both old and new images (both must match)
+	 *
+	 * Note: For INSERT events, only newImage is available. For REMOVE events, only oldImage is available.
+	 * If the requested image is not available, validation will fail gracefully.
+	 */
+	validationTarget?: ValidationTarget;
+}
+
 // Options for modify handlers
-export interface ModifyHandlerOptions {
+export interface ModifyHandlerOptions extends HandlerOptions {
 	attribute?: string;
 	changeType?: AttributeChangeType | AttributeChangeType[];
 	/**
@@ -72,13 +90,8 @@ export interface ModifyHandlerOptions {
 }
 
 // Options for remove handlers
-export interface RemoveHandlerOptions {
+export interface RemoveHandlerOptions extends HandlerOptions {
 	excludeTTL?: boolean; // When true, excludes TTL-triggered removals (default: false)
-}
-
-// Generic handler options
-export interface HandlerOptions {
-	batch?: boolean; // When true, handler receives all matching records as array
 }
 
 // Primary key configuration for batch grouping

@@ -82,6 +82,18 @@ The discriminator/parser is matched against different images based on event type
 
 For MODIFY events, the **newImage** is used for matching because you typically want to route based on the current state of the record. If a record's type changed (e.g., `pk` prefix changed from `USER#` to `ADMIN#`), the handler for the new type will be invoked.
 
+**Validation Target:** Use the `validationTarget` option to control which image(s) are validated:
+- `"newImage"` (default) - Validates the new image
+- `"oldImage"` - Validates the old image (useful for processing based on previous state)
+- `"both"` - Both images must match (useful for type migration validation)
+
+```typescript
+// Only process if BOTH old and new images match
+router.onModify(isUser, async (oldUser, newUser, ctx) => {
+  // Both states are guaranteed to be valid Users
+}, { validationTarget: "both" });
+```
+
 ## Using Zod Schemas
 
 ```typescript

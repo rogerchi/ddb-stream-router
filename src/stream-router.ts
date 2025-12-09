@@ -43,6 +43,7 @@ import type {
 	StreamRouterOptions,
 	StreamViewType,
 	TTLRemoveHandler,
+	ValidationTarget,
 } from "./types.js";
 
 const VALID_STREAM_VIEW_TYPES: StreamViewType[] = [
@@ -654,11 +655,41 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 	/**
 	 * Checks if a handler matches the record using discriminator or parser.
+	 * Can validate against a single image or both images (for MODIFY events with validationTarget: "both").
 	 */
 	private matchHandler(
 		handler: RegisteredHandler,
 		imageData: unknown,
-	): { matches: boolean; parsedData?: unknown } {
+		oldImageData?: unknown,
+	): { matches: boolean; parsedData?: unknown; parsedOldData?: unknown } {
+		const validationTarget =
+			(handler.options as HandlerOptions).validationTarget ??
+			("newImage" as const);
+
+		// For "both" validation, need to validate both images
+		if (validationTarget === "both" && oldImageData !== undefined) {
+			if (handler.isParser) {
+				const parser = handler.matcher as Parser<unknown>;
+				const newResult = parser.safeParse(imageData);
+				const oldResult = parser.safeParse(oldImageData);
+				if (newResult.success && oldResult.success) {
+					return {
+						matches: true,
+						parsedData: newResult.data,
+						parsedOldData: oldResult.data,
+					};
+				}
+				return { matches: false };
+			}
+
+			// Discriminator function
+			const discriminator = handler.matcher as (record: unknown) => boolean;
+			const newMatches = discriminator(imageData);
+			const oldMatches = discriminator(oldImageData);
+			return { matches: newMatches && oldMatches };
+		}
+
+		// Single image validation (original behavior)
 		if (handler.isParser) {
 			const parser = handler.matcher as Parser<unknown>;
 			const result = parser.safeParse(imageData);
@@ -752,24 +783,38 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 	}
 
 	/**
-	 * Gets the appropriate image data for matching based on event type.
+	 * Gets the appropriate image data for matching based on event type and validation target.
+	 * Returns the image to validate and optionally the old image for "both" validation.
 	 */
 	private getMatchingImage(
 		record: DynamoDBRecord,
 		eventType: "INSERT" | "MODIFY" | "REMOVE",
-	): unknown {
+		validationTarget: ValidationTarget = "newImage",
+	): { imageData: unknown; oldImageData?: unknown } {
 		const newImage = this.unmarshallImage(record.dynamodb?.NewImage);
 		const oldImage = this.unmarshallImage(record.dynamodb?.OldImage);
 
 		switch (eventType) {
 			case "INSERT":
-				return newImage;
+				// INSERT only has newImage, regardless of validationTarget
+				return { imageData: newImage };
 			case "REMOVE":
-				return oldImage;
-			case "MODIFY":
-				return newImage; // Use newImage for matching MODIFY events
+				// REMOVE only has oldImage, regardless of validationTarget
+				return { imageData: oldImage };
+			case "MODIFY": {
+				// MODIFY has both images - respect validationTarget
+				if (validationTarget === "oldImage") {
+					return { imageData: oldImage };
+				}
+				if (validationTarget === "both") {
+					// For "both", primary imageData is newImage, with oldImage for comparison
+					return { imageData: newImage, oldImageData: oldImage };
+				}
+				// Default: "newImage"
+				return { imageData: newImage };
+			}
 			default:
-				return undefined;
+				return { imageData: undefined };
 		}
 	}
 
@@ -780,6 +825,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		handler: RegisteredHandler,
 		record: DynamoDBRecord,
 		parsedData: unknown | undefined,
+		parsedOldData: unknown | undefined,
 		ctx: HandlerContext,
 	): Record<string, unknown> {
 		const newImage =
@@ -803,9 +849,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				if (this._streamViewType === "OLD_IMAGE") {
 					return { oldImage, newImage: undefined, ctx };
 				}
-				// NEW_AND_OLD_IMAGES - need to re-parse oldImage if parser
-				let parsedOldImage: unknown = oldImage;
-				if (handler.isParser && oldImage) {
+				// NEW_AND_OLD_IMAGES - use parsedOldData if available (from "both" validation)
+				let parsedOldImage: unknown = parsedOldData ?? oldImage;
+				// If no parsedOldData but handler is parser, re-parse oldImage
+				if (!parsedOldData && handler.isParser && oldImage) {
 					const parser = handler.matcher as Parser<unknown>;
 					const result = parser.safeParse(oldImage);
 					if (result.success) {
@@ -835,6 +882,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 		handler: RegisteredHandler,
 		record: DynamoDBRecord,
 		parsedData: unknown | undefined,
+		parsedOldData: unknown | undefined,
 		ctx: HandlerContext,
 	): Promise<void> {
 		const newImage =
@@ -858,9 +906,10 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				} else if (this._streamViewType === "OLD_IMAGE") {
 					await handler.handler(oldImage, undefined, ctx);
 				} else {
-					// NEW_AND_OLD_IMAGES - need to re-parse oldImage if parser
-					let parsedOldImage: unknown = oldImage;
-					if (handler.isParser && oldImage) {
+					// NEW_AND_OLD_IMAGES - use parsedOldData if available (from "both" validation)
+					let parsedOldImage: unknown = parsedOldData ?? oldImage;
+					// If no parsedOldData but handler is parser, re-parse oldImage
+					if (!parsedOldData && handler.isParser && oldImage) {
 						const parser = handler.matcher as Parser<unknown>;
 						const result = parser.safeParse(oldImage);
 						if (result.success) {
@@ -1060,7 +1109,6 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 				const eventType = record.eventName as "INSERT" | "MODIFY" | "REMOVE";
 				const ctx = this.buildContext(record);
-				const matchingImage = this.getMatchingImage(record, eventType);
 
 				// Determine if this is a TTL removal event
 				const isTTL = eventType === "REMOVE" && this.isTTLRemoval(record);
@@ -1094,9 +1142,17 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 
 				let matchedHandlerCount = 0;
 				for (const handler of matchingHandlers) {
-					const { matches, parsedData } = this.matchHandler(
+					const validationTarget =
+						(handler.options as HandlerOptions).validationTarget ?? "newImage";
+					const { imageData, oldImageData } = this.getMatchingImage(
+						record,
+						eventType,
+						validationTarget,
+					);
+					const { matches, parsedData, parsedOldData } = this.matchHandler(
 						handler,
-						matchingImage,
+						imageData,
+						oldImageData,
 					);
 					if (matches) {
 						// For MODIFY events, check attribute filter
@@ -1143,6 +1199,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 										handler,
 										record,
 										parsedData,
+										parsedOldData,
 										ctx,
 									);
 									const batchRecords = handlerBatches.get(batchKey);
@@ -1152,7 +1209,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 								}
 							} else {
 								// Immediate execution for non-batch handlers
-								await this.invokeHandler(handler, record, parsedData, ctx);
+								await this.invokeHandler(
+									handler,
+									record,
+									parsedData,
+									parsedOldData,
+									ctx,
+								);
 							}
 						}
 					}
@@ -1299,10 +1362,20 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 				const record = message.record as DynamoDBRecord;
 				const eventType = record.eventName as "INSERT" | "MODIFY" | "REMOVE";
 				const ctx = this.buildContext(record);
-				const matchingImage = this.getMatchingImage(record, eventType);
+				const validationTarget =
+					(handler.options as HandlerOptions).validationTarget ?? "newImage";
+				const { imageData, oldImageData } = this.getMatchingImage(
+					record,
+					eventType,
+					validationTarget,
+				);
 
 				// Re-match to get parsed data if using a parser
-				const { parsedData } = this.matchHandler(handler, matchingImage);
+				const { parsedData, parsedOldData } = this.matchHandler(
+					handler,
+					imageData,
+					oldImageData,
+				);
 
 				// Check if batch mode is enabled
 				const handlerOptions = handler.options as BatchHandlerOptions;
@@ -1321,6 +1394,7 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 							handler,
 							record,
 							parsedData,
+							parsedOldData,
 							ctx,
 						);
 						const batchRecords = handlerBatches.get(batchKey);
@@ -1333,7 +1407,13 @@ export class StreamRouter<V extends StreamViewType = "NEW_AND_OLD_IMAGES"> {
 					}
 				} else {
 					// Execute non-batch handler immediately
-					await this.invokeHandler(handler, record, parsedData, ctx);
+					await this.invokeHandler(
+						handler,
+						record,
+						parsedData,
+						parsedOldData,
+						ctx,
+					);
 					result.succeeded++;
 				}
 			} catch (error) {

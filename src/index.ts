@@ -45,4 +45,5 @@ export type {
 	StreamRouterOptions,
 	StreamViewType,
 	TTLRemoveHandler,
+	ValidationTarget,
 } from "./types.js";
