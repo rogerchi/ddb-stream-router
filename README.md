@@ -2,19 +2,6 @@
 
 A TypeScript library providing Express-like routing for DynamoDB Stream events. Register type-safe handlers for INSERT, MODIFY, and REMOVE operations using discriminator functions or schema validators like Zod. Defer heavy processing to SQS with a simple `.defer(handlerId)` chain to keep your stream processing fast and reliable.
 
-## Features
-
-- **Express-like API** - Familiar `.onInsert()`, `.onModify()`, `.onRemove()`, `.onTTLRemove()`, `.use()` methods
-- **Type Safety** - Full TypeScript inference from discriminators and parsers
-- **Flexible Matching** - Use type guards or schema validators (Zod, etc.)
-- **Attribute Filtering** - React to specific attribute changes in MODIFY events
-- **Batch Processing** - Group records and process them together
-- **Middleware Support** - Intercept records before handlers
-- **Deferred Processing** - Automatically enqueue to SQS for async processing
-- **Global Tables** - Filter records by region
-- **Partial Batch Failures** - Lambda retry support via `reportBatchItemFailures`
-- **TTL Removal Handling** - Separate handlers for TTL-triggered vs user-initiated deletions
-
 ## Installation
 
 ```bash
@@ -27,6 +14,19 @@ yarn add @rogerchi/ddb-stream-router
 ```bash
 npm install @aws-sdk/util-dynamodb @aws-sdk/client-sqs
 ```
+
+## Features
+
+- **Express-like API** - Familiar `.onInsert()`, `.onModify()`, `.onRemove()`, `.onTTLRemove()`, `.use()` methods
+- **Type Safety** - Full TypeScript inference from discriminators and parsers
+- **Flexible Matching** - Use type guards or schema validators (Zod, etc.)
+- **Attribute Filtering** - React to specific attribute changes in MODIFY events
+- **Batch Processing** - Group records and process them together
+- **Middleware Support** - Intercept records before handlers
+- **Deferred Processing** - Automatically enqueue to SQS for async processing
+- **Global Tables** - Filter records by region
+- **Partial Batch Failures** - Lambda retry support via `reportBatchItemFailures`
+- **TTL Removal Handling** - Separate handlers for TTL-triggered vs user-initiated deletions
 
 ## Quick Start
 
@@ -170,108 +170,63 @@ router.onModify(
 - Arrays (DynamoDB Lists)
 - Sets (DynamoDB String Sets, Number Sets, Binary Sets)
 
-## Batch Processing
 ## TTL Removal Events
 
-DynamoDB TTL (Time To Live) automatically deletes expired items, creating REMOVE events in the stream with special `userIdentity` metadata. The router provides dedicated support for handling TTL removals separately from user-initiated deletions.
-
-### Identifying TTL Removals
-
-TTL-triggered removals have:
-- `eventName: "REMOVE"`
-- `userIdentity.type === "Service"`
-- `userIdentity.principalId === "dynamodb.amazonaws.com"`
-
-### Using onTTLRemove
-
-Register handlers specifically for TTL-triggered removals:
+DynamoDB TTL automatically deletes expired items, creating REMOVE events with special `userIdentity` metadata. The router lets you handle TTL removals separately from user-initiated deletions.
 
 ```typescript
-interface Session {
-  pk: string;
-  sk: string;
-  userId: string;
-  sessionId: string;
-  ttl: number;
-}
-
-const isSession = (record: unknown): record is Session =>
-  typeof record === 'object' &&
-  record !== null &&
-  'sk' in record &&
-  (record as Session).sk.startsWith('session#');
-
-// Handle TTL-triggered session expirations
+// Handle TTL-triggered removals only
 router.onTTLRemove(isSession, async (oldImage, ctx) => {
   console.log(`Session expired via TTL: ${oldImage.sessionId}`);
   await cleanupExpiredSession(oldImage);
 });
-```
 
-### Excluding TTL from onRemove
-
-Use `excludeTTL: true` to handle only user-initiated deletions:
-
-```typescript
-// Handle explicit deletions (logout) only, not TTL expirations
+// Handle user-initiated deletions only (exclude TTL)
 router.onRemove(isSession, async (oldImage, ctx) => {
   console.log(`User logged out: ${oldImage.userId}`);
   await handleUserLogout(oldImage);
 }, { excludeTTL: true });
-```
 
-### Default Behavior
-
-By default, `onRemove` handlers receive **both** TTL-triggered and user-initiated removals:
-
-```typescript
-// This receives all REMOVE events (TTL + user-initiated)
+// Default: onRemove receives both TTL and user-initiated removals
 router.onRemove(isUser, async (oldImage, ctx) => {
   console.log(`User removed: ${oldImage.userId}`);
 });
-
-// Equivalent to:
-router.onRemove(isUser, handler, { excludeTTL: false });
 ```
 
-### Separate Handlers for Different Removal Types
+TTL removals are identified by:
+- `userIdentity.type === "Service"`
+- `userIdentity.principalId === "dynamodb.amazonaws.com"`
+
+See [examples/ttl-removal.ts](./examples/ttl-removal.ts) for more examples.
+
+## Middleware
 
 ```typescript
-const isSession = (record: unknown): record is Session => /* ... */;
-
-// TTL expirations only
-router.onTTLRemove(isSession, async (oldImage, ctx) => {
-  console.log('Session expired (TTL)');
-  await trackSessionExpiration(oldImage);
+// Logging middleware
+router.use(async (record, next) => {
+  console.log(`Processing ${record.eventName}: ${record.eventID}`);
+  await next();
 });
 
-// User-initiated deletions only
-router.onRemove(isSession, async (oldImage, ctx) => {
-  console.log('User logged out (explicit)');
-  await trackUserLogout(oldImage);
-}, { excludeTTL: true });
+// Skip certain records
+router.use(async (record, next) => {
+  if (record.eventSourceARN?.includes('test-table')) {
+    return; // Don't call next() to skip
+  }
+  await next();
+});
+
+// Error handling
+router.use(async (record, next) => {
+  try {
+    await next();
+  } catch (error) {
+    await recordMetric('stream.error', 1);
+    throw error;
+  }
+});
 ```
 
-### Batch Processing with TTL Removals
-
-TTL removal handlers support batch processing just like regular handlers:
-
-```typescript
-router.onTTLRemove(isSession, async (records) => {
-  console.log(`Processing ${records.length} expired sessions`);
-  const sessionIds = records.map(r => r.oldImage.sessionId);
-  await batchCleanupExpiredSessions(sessionIds);
-}, { batch: true });
-```
-
-### Use Cases
-
-- **Metrics**: Track session expirations vs explicit logouts separately
-- **Cleanup**: Apply different cleanup logic for TTL vs user-initiated deletes
-- **Auditing**: Log different event types for compliance requirements
-- **Notifications**: Send alerts based on deletion type (e.g., warn on unexpected expirations)
-
-See [examples/ttl-removal.ts](./examples/ttl-removal.ts) for a complete example.
 ## Batch Processing
 
 Process multiple records together:
@@ -309,37 +264,9 @@ router.onModify(
 );
 ```
 
-## Middleware
-
-```typescript
-// Logging middleware
-router.use(async (record, next) => {
-  console.log(`Processing ${record.eventName}: ${record.eventID}`);
-  await next();
-});
-
-// Skip certain records
-router.use(async (record, next) => {
-  if (record.eventSourceARN?.includes('test-table')) {
-    return; // Don't call next() to skip
-  }
-  await next();
-});
-
-// Error handling
-router.use(async (record, next) => {
-  try {
-    await next();
-  } catch (error) {
-    await recordMetric('stream.error', 1);
-    throw error;
-  }
-});
-```
-
 ## Deferred Processing (SQS)
 
-Offload heavy processing to SQS:
+Offload heavy processing to SQS to keep stream processing fast:
 
 ```typescript
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
@@ -355,33 +282,33 @@ router.onInsert(isOrder, async (order, ctx) => {
   console.log('Order received');
 });
 
-// Deferred handler - enqueues to SQS
+// Deferred handler - enqueues to SQS instead of executing immediately
 router
   .onInsert(isOrder, async (order, ctx) => {
-    // This runs when processing from SQS
     await sendConfirmationEmail(order);
     await generateInvoice(order);
   })
   .defer('order-email-handler', { delaySeconds: 30 });
 
-// Stream handler - simplified export with built-in batch failure support
+// Stream handler
 export const streamHandler = router.streamHandler;
 
-// SQS handler - simplified export with built-in batch failure support
+// SQS handler (can be same or different Lambda function)
 export const sqsHandler = router.sqsHandler;
 ```
 
-**Why is the handler ID required?**
+The handler ID in `.defer(id)` is required to match records when processing from SQS. It ensures stable routing across deployments and supports cross-function processing.
 
-The `id` parameter in `.defer(id)` serves several important purposes:
+## Stream View Types
 
-1. **Handler matching**: When the SQS message is processed via `processDeferred()`, the ID identifies which specific handler should execute. This ensures only the intended handler runs, even if the original record matched multiple handlers.
+Handler signatures adapt based on your DynamoDB stream configuration:
 
-2. **Stable references**: The ID remains stable across Lambda deployments and code changes. Without a stable ID, handler registration order changes could route messages to the wrong handler.
-
-3. **Cross-function support**: The stream handler and SQS handler can be different Lambda functions. The ID ensures the SQS handler can locate the correct handler regardless of how handlers are registered in each function.
-
-4. **Uniqueness**: Each deferred handler must have a unique ID within the router. Duplicate IDs will throw a `ConfigurationError`.
+| Stream View Type | INSERT | MODIFY | REMOVE |
+|-----------------|--------|--------|--------|
+| `KEYS_ONLY` | `(keys, ctx)` | `(keys, ctx)` | `(keys, ctx)` |
+| `NEW_IMAGE` | `(newImage, ctx)` | `(undefined, newImage, ctx)` | `(undefined, ctx)` |
+| `OLD_IMAGE` | `(undefined, ctx)` | `(oldImage, undefined, ctx)` | `(oldImage, ctx)` |
+| `NEW_AND_OLD_IMAGES` | `(newImage, ctx)` | `(oldImage, newImage, ctx)` | `(oldImage, ctx)` |
 
 ## Global Tables (Region Filtering)
 
@@ -417,17 +344,6 @@ const router = new StreamRouter({
   logger: console,
 });
 ```
-
-## Stream View Types
-
-Handler signatures adapt based on your DynamoDB stream configuration:
-
-| Stream View Type | INSERT | MODIFY | REMOVE |
-|-----------------|--------|--------|--------|
-| `KEYS_ONLY` | `(keys, ctx)` | `(keys, ctx)` | `(keys, ctx)` |
-| `NEW_IMAGE` | `(newImage, ctx)` | `(undefined, newImage, ctx)` | `(undefined, ctx)` |
-| `OLD_IMAGE` | `(undefined, ctx)` | `(oldImage, undefined, ctx)` | `(oldImage, ctx)` |
-| `NEW_AND_OLD_IMAGES` | `(newImage, ctx)` | `(oldImage, newImage, ctx)` | `(oldImage, ctx)` |
 
 ## Processing Results
 
