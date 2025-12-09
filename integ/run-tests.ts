@@ -35,6 +35,7 @@ interface VerificationMessage {
 	sk: string;
 	timestamp: number;
 	eventId?: string;
+	handlerType?: string;
 }
 
 // Load CDK outputs
@@ -167,8 +168,8 @@ async function runTests(): Promise<void> {
 		// Small delay between operations to ensure ordering
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Operation 2: MODIFY
-		console.log(`  2. MODIFY: pk=${testPk}, sk=${testSk}`);
+		// Operation 2: MODIFY (data only - should NOT trigger status handler)
+		console.log(`  2. MODIFY (data only): pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new UpdateItemCommand({
 				TableName,
@@ -184,8 +185,63 @@ async function runTests(): Promise<void> {
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Operation 3: REMOVE
-		console.log(`  3. REMOVE: pk=${testPk}, sk=${testSk}`);
+		// Operation 3: MODIFY (add status = "pending")
+		console.log(`  3. MODIFY (status = "pending"): pk=${testPk}, sk=${testSk}`);
+		await ddbClient.send(
+			new UpdateItemCommand({
+				TableName,
+				Key: {
+					pk: { S: testPk },
+					sk: { S: testSk },
+				},
+				UpdateExpression: "SET #status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": { S: "pending" } },
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Operation 4: MODIFY (status "pending" -> "active" - SHOULD trigger value filter)
+		console.log(
+			`  4. MODIFY (status "pending" -> "active"): pk=${testPk}, sk=${testSk}`,
+		);
+		await ddbClient.send(
+			new UpdateItemCommand({
+				TableName,
+				Key: {
+					pk: { S: testPk },
+					sk: { S: testSk },
+				},
+				UpdateExpression: "SET #status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": { S: "active" } },
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Operation 5: MODIFY (status "active" -> "completed" - SHOULD trigger to-completed filter)
+		console.log(
+			`  5. MODIFY (status "active" -> "completed"): pk=${testPk}, sk=${testSk}`,
+		);
+		await ddbClient.send(
+			new UpdateItemCommand({
+				TableName,
+				Key: {
+					pk: { S: testPk },
+					sk: { S: testSk },
+				},
+				UpdateExpression: "SET #status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": { S: "completed" } },
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Operation 6: REMOVE
+		console.log(`  6. REMOVE: pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new DeleteItemCommand({
 				TableName,
@@ -202,10 +258,13 @@ async function runTests(): Promise<void> {
 
 		// Expected messages:
 		// - INSERT immediate + INSERT deferred = 2
-		// - MODIFY immediate = 1
+		// - MODIFY immediate (data change) = 1 (modify-all)
+		// - MODIFY immediate (status -> "pending") = 2 (modify-all + modify-status-change)
+		// - MODIFY immediate (status "pending" -> "active") = 3 (modify-all + modify-status-change + modify-status-pending-to-active)
+		// - MODIFY immediate (status "active" -> "completed") = 3 (modify-all + modify-status-change + modify-status-to-completed)
 		// - REMOVE immediate = 1
-		// Total = 4
-		const expectedMessageCount = 4;
+		// Total = 12
+		const expectedMessageCount = 12;
 
 		const allMessages = await drainVerificationQueue(
 			sqsClient,
@@ -230,8 +289,29 @@ async function runTests(): Promise<void> {
 		const insertDeferred = testMessages.filter(
 			(m) => m.operationType === "INSERT" && m.isDeferred,
 		);
-		const modifyImmediate = testMessages.filter(
-			(m) => m.operationType === "MODIFY" && !m.isDeferred,
+		const modifyAll = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-all",
+		);
+		const modifyStatusChange = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-status-change",
+		);
+		const modifyPendingToActive = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-status-pending-to-active",
+		);
+		const modifyToCompleted = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-status-to-completed",
 		);
 		const removeImmediate = testMessages.filter(
 			(m) => m.operationType === "REMOVE" && !m.isDeferred,
@@ -239,7 +319,12 @@ async function runTests(): Promise<void> {
 
 		console.log(`  INSERT immediate: ${insertImmediate.length}`);
 		console.log(`  INSERT deferred: ${insertDeferred.length}`);
-		console.log(`  MODIFY immediate: ${modifyImmediate.length}`);
+		console.log(`  MODIFY all changes: ${modifyAll.length}`);
+		console.log(`  MODIFY status change only: ${modifyStatusChange.length}`);
+		console.log(
+			`  MODIFY status pending->active: ${modifyPendingToActive.length}`,
+		);
+		console.log(`  MODIFY status to completed: ${modifyToCompleted.length}`);
 		console.log(`  REMOVE immediate: ${removeImmediate.length}`);
 
 		// Run assertions
@@ -277,18 +362,68 @@ async function runTests(): Promise<void> {
 			console.log(`  ❌ INSERT deferred: FAILED - ${(error as Error).message}`);
 		}
 
-		// Test 3: MODIFY immediate
+		// Test 3: MODIFY all changes (should fire for all 4 modify operations)
 		totalTests++;
 		try {
 			assert.strictEqual(
-				modifyImmediate.length,
-				1,
-				`Expected 1 immediate MODIFY, got ${modifyImmediate.length}`,
+				modifyAll.length,
+				4,
+				`Expected 4 modify-all handlers (data + 3 status changes), got ${modifyAll.length}`,
 			);
-			console.log("  ✅ MODIFY immediate: PASSED");
+			console.log("  ✅ MODIFY all changes: PASSED");
 			passedTests++;
 		} catch (error) {
-			console.log(`  ❌ MODIFY immediate: FAILED - ${(error as Error).message}`);
+			console.log(
+				`  ❌ MODIFY all changes: FAILED - ${(error as Error).message}`,
+			);
+		}
+
+		// Test 3b: MODIFY status change only (should fire for all 3 status changes)
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyStatusChange.length,
+				3,
+				`Expected 3 modify-status-change handlers (3 status changes), got ${modifyStatusChange.length}`,
+			);
+			console.log("  ✅ MODIFY status change targeted: PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ MODIFY status change targeted: FAILED - ${(error as Error).message}`,
+			);
+		}
+
+		// Test 3c: MODIFY status pending->active (value-based filtering)
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyPendingToActive.length,
+				1,
+				`Expected 1 modify-status-pending-to-active handler, got ${modifyPendingToActive.length}`,
+			);
+			console.log("  ✅ MODIFY status pending->active (value filter): PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ MODIFY status pending->active (value filter): FAILED - ${(error as Error).message}`,
+			);
+		}
+
+		// Test 3d: MODIFY status to completed (newFieldValue filtering)
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyToCompleted.length,
+				1,
+				`Expected 1 modify-status-to-completed handler, got ${modifyToCompleted.length}`,
+			);
+			console.log("  ✅ MODIFY status to completed (newFieldValue filter): PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ MODIFY status to completed (newFieldValue filter): FAILED - ${(error as Error).message}`,
+			);
 		}
 
 		// Test 4: REMOVE immediate

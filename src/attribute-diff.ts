@@ -46,7 +46,7 @@ function isMap(value: unknown): boolean {
  * Deep equality check for comparing attribute values.
  * Handles primitives, arrays, objects, and Sets.
  */
-function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(a: unknown, b: unknown): boolean {
 	if (a === b) return true;
 	if (a === null || b === null) return a === b;
 	if (typeof a !== typeof b) return false;
@@ -242,6 +242,17 @@ function diffAttributesRecursive(
 		if (existsInOld && existsInNew) {
 			if (deepEqual(oldValue, newValue)) {
 				continue; // No change
+			}
+
+			// Check for field_cleared: attribute went from non-null to null
+			if (oldValue !== null && oldValue !== undefined && newValue === null) {
+				changes.push({
+					attribute: path,
+					changeType: "field_cleared",
+					oldValue,
+					newValue,
+				});
+				continue;
 			}
 
 			// Check for collection-level changes first (arrays and Sets)

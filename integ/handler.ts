@@ -13,6 +13,7 @@ interface VerificationMessage {
 	sk: string;
 	timestamp: number;
 	eventId?: string;
+	handlerType?: string; // To distinguish different handler types
 }
 
 // Test item interface
@@ -20,6 +21,8 @@ interface TestItem {
 	pk: string;
 	sk: string;
 	data?: string;
+	status?: string;
+	count?: number;
 }
 
 // Type guard for test items
@@ -67,7 +70,7 @@ router.onInsert(isTestItem, async (newImage, ctx) => {
 	});
 });
 
-// Immediate MODIFY handler
+// Immediate MODIFY handler (all changes)
 router.onModify(isTestItem, async (_oldImage, newImage, ctx) => {
 	await sendVerification({
 		operationType: "MODIFY",
@@ -76,8 +79,67 @@ router.onModify(isTestItem, async (_oldImage, newImage, ctx) => {
 		sk: newImage.sk,
 		timestamp: Date.now(),
 		eventId: ctx.eventID,
+		handlerType: "modify-all",
 	});
 });
+
+// Targeted MODIFY handler - only when 'status' attribute changes
+router.onModify(
+	isTestItem,
+	async (_oldImage, newImage, ctx) => {
+		await sendVerification({
+			operationType: "MODIFY",
+			isDeferred: false,
+			pk: newImage.pk,
+			sk: newImage.sk,
+			timestamp: Date.now(),
+			eventId: ctx.eventID,
+			handlerType: "modify-status-change",
+		});
+	},
+	{ attribute: "status" },
+);
+
+// Value-based filtering - status changes FROM "pending" TO "active"
+router.onModify(
+	isTestItem,
+	async (_oldImage, newImage, ctx) => {
+		await sendVerification({
+			operationType: "MODIFY",
+			isDeferred: false,
+			pk: newImage.pk,
+			sk: newImage.sk,
+			timestamp: Date.now(),
+			eventId: ctx.eventID,
+			handlerType: "modify-status-pending-to-active",
+		});
+	},
+	{
+		attribute: "status",
+		oldFieldValue: "pending",
+		newFieldValue: "active",
+	},
+);
+
+// Value-based filtering - status changes TO "completed" (from any value)
+router.onModify(
+	isTestItem,
+	async (_oldImage, newImage, ctx) => {
+		await sendVerification({
+			operationType: "MODIFY",
+			isDeferred: false,
+			pk: newImage.pk,
+			sk: newImage.sk,
+			timestamp: Date.now(),
+			eventId: ctx.eventID,
+			handlerType: "modify-status-to-completed",
+		});
+	},
+	{
+		attribute: "status",
+		newFieldValue: "completed",
+	},
+);
 
 // Immediate REMOVE handler
 router.onRemove(isTestItem, async (oldImage, ctx) => {
