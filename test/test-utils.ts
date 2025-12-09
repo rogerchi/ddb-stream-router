@@ -81,51 +81,51 @@ export function createModifyEvent(
  * The NewImage and OldImage are expected to be in DynamoDB AttributeValue format.
  */
 export function createMockStreamEvent(
-        records: Array<{
-                eventName: "INSERT" | "MODIFY" | "REMOVE";
-                dynamodb: {
-                        Keys: Record<string, { S?: string; N?: string; B?: string }>;
-                        NewImage?: Record<
-                                string,
-                                {
-                                        S?: string;
-                                        N?: string;
-                                        B?: string;
-                                        L?: unknown[];
-                                        M?: Record<string, unknown>;
-                                }
-                        >;
-                        OldImage?: Record<
-                                string,
-                                {
-                                        S?: string;
-                                        N?: string;
-                                        B?: string;
-                                        L?: unknown[];
-                                        M?: Record<string, unknown>;
-                                }
-                        >;
-                };
-        }>,
+		records: Array<{
+				eventName: "INSERT" | "MODIFY" | "REMOVE";
+				dynamodb: {
+						Keys: Record<string, { S?: string; N?: string; B?: string }>;
+						NewImage?: Record<
+								string,
+								{
+										S?: string;
+										N?: string;
+										B?: string;
+										L?: unknown[];
+										M?: Record<string, unknown>;
+								}
+						>;
+						OldImage?: Record<
+								string,
+								{
+										S?: string;
+										N?: string;
+										B?: string;
+										L?: unknown[];
+										M?: Record<string, unknown>;
+								}
+						>;
+				};
+		}>,
 ): DynamoDBStreamEvent {
-        const dynamoDBRecords: DynamoDBRecord[] = records.map(
-                (record) =>
-                        ({
-                                eventID: `event_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                                eventName: record.eventName,
-                                eventVersion: "1.1",
-                                eventSource: "aws:dynamodb",
-                                awsRegion: "us-east-1",
-                                eventSourceARN: `arn:aws:dynamodb:us-east-1:123456789012:table/${TABLE_NAME}/stream/2024-01-01T00:00:00.000`,
-                                dynamodb: {
-                                        Keys: record.dynamodb.Keys,
-                                        NewImage: record.dynamodb.NewImage,
-                                        OldImage: record.dynamodb.OldImage,
-                                        SequenceNumber: `seq_${Date.now()}`,
-                                        StreamViewType: "NEW_AND_OLD_IMAGES",
-                                },
-                        }) as DynamoDBRecord,
-        );
+		const dynamoDBRecords: DynamoDBRecord[] = records.map(
+				(record) =>
+						({
+								eventID: `event_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+								eventName: record.eventName,
+								eventVersion: "1.1",
+								eventSource: "aws:dynamodb",
+								awsRegion: "us-east-1",
+								eventSourceARN: `arn:aws:dynamodb:us-east-1:123456789012:table/${TABLE_NAME}/stream/2024-01-01T00:00:00.000`,
+								dynamodb: {
+										Keys: record.dynamodb.Keys,
+										NewImage: record.dynamodb.NewImage,
+										OldImage: record.dynamodb.OldImage,
+										SequenceNumber: `seq_${Date.now()}`,
+										StreamViewType: "NEW_AND_OLD_IMAGES",
+								},
+						}) as DynamoDBRecord,
+		);
 
-        return { Records: dynamoDBRecords };
+		return { Records: dynamoDBRecords };
 }
