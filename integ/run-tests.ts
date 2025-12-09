@@ -185,8 +185,27 @@ async function runTests(): Promise<void> {
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Operation 3: MODIFY (status change - SHOULD trigger status handler)
-		console.log(`  3. MODIFY (status change): pk=${testPk}, sk=${testSk}`);
+		// Operation 3: MODIFY (add status = "pending")
+		console.log(`  3. MODIFY (status = "pending"): pk=${testPk}, sk=${testSk}`);
+		await ddbClient.send(
+			new UpdateItemCommand({
+				TableName,
+				Key: {
+					pk: { S: testPk },
+					sk: { S: testSk },
+				},
+				UpdateExpression: "SET #status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": { S: "pending" } },
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Operation 4: MODIFY (status "pending" -> "active" - SHOULD trigger value filter)
+		console.log(
+			`  4. MODIFY (status "pending" -> "active"): pk=${testPk}, sk=${testSk}`,
+		);
 		await ddbClient.send(
 			new UpdateItemCommand({
 				TableName,
@@ -202,8 +221,27 @@ async function runTests(): Promise<void> {
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Operation 4: REMOVE
-		console.log(`  4. REMOVE: pk=${testPk}, sk=${testSk}`);
+		// Operation 5: MODIFY (status "active" -> "completed" - SHOULD trigger to-completed filter)
+		console.log(
+			`  5. MODIFY (status "active" -> "completed"): pk=${testPk}, sk=${testSk}`,
+		);
+		await ddbClient.send(
+			new UpdateItemCommand({
+				TableName,
+				Key: {
+					pk: { S: testPk },
+					sk: { S: testSk },
+				},
+				UpdateExpression: "SET #status = :status",
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: { ":status": { S: "completed" } },
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		// Operation 6: REMOVE
+		console.log(`  6. REMOVE: pk=${testPk}, sk=${testSk}`);
 		await ddbClient.send(
 			new DeleteItemCommand({
 				TableName,
@@ -220,12 +258,13 @@ async function runTests(): Promise<void> {
 
 		// Expected messages:
 		// - INSERT immediate + INSERT deferred = 2
-		// - MODIFY immediate (data change) = 1
-		// - MODIFY immediate (status change) = 1 (modify-all handler)
-		// - MODIFY status handler (status change only) = 1
+		// - MODIFY immediate (data change) = 1 (modify-all)
+		// - MODIFY immediate (status -> "pending") = 2 (modify-all + modify-status-change)
+		// - MODIFY immediate (status "pending" -> "active") = 3 (modify-all + modify-status-change + modify-status-pending-to-active)
+		// - MODIFY immediate (status "active" -> "completed") = 3 (modify-all + modify-status-change + modify-status-to-completed)
 		// - REMOVE immediate = 1
-		// Total = 6
-		const expectedMessageCount = 6;
+		// Total = 12
+		const expectedMessageCount = 12;
 
 		const allMessages = await drainVerificationQueue(
 			sqsClient,
@@ -262,6 +301,18 @@ async function runTests(): Promise<void> {
 				!m.isDeferred &&
 				m.handlerType === "modify-status-change",
 		);
+		const modifyPendingToActive = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-status-pending-to-active",
+		);
+		const modifyToCompleted = testMessages.filter(
+			(m) =>
+				m.operationType === "MODIFY" &&
+				!m.isDeferred &&
+				m.handlerType === "modify-status-to-completed",
+		);
 		const removeImmediate = testMessages.filter(
 			(m) => m.operationType === "REMOVE" && !m.isDeferred,
 		);
@@ -270,6 +321,10 @@ async function runTests(): Promise<void> {
 		console.log(`  INSERT deferred: ${insertDeferred.length}`);
 		console.log(`  MODIFY all changes: ${modifyAll.length}`);
 		console.log(`  MODIFY status change only: ${modifyStatusChange.length}`);
+		console.log(
+			`  MODIFY status pending->active: ${modifyPendingToActive.length}`,
+		);
+		console.log(`  MODIFY status to completed: ${modifyToCompleted.length}`);
 		console.log(`  REMOVE immediate: ${removeImmediate.length}`);
 
 		// Run assertions
@@ -307,13 +362,13 @@ async function runTests(): Promise<void> {
 			console.log(`  ❌ INSERT deferred: FAILED - ${(error as Error).message}`);
 		}
 
-		// Test 3: MODIFY all changes (should fire for both data and status changes)
+		// Test 3: MODIFY all changes (should fire for all 4 modify operations)
 		totalTests++;
 		try {
 			assert.strictEqual(
 				modifyAll.length,
-				2,
-				`Expected 2 modify-all handlers (data + status changes), got ${modifyAll.length}`,
+				4,
+				`Expected 4 modify-all handlers (data + 3 status changes), got ${modifyAll.length}`,
 			);
 			console.log("  ✅ MODIFY all changes: PASSED");
 			passedTests++;
@@ -323,19 +378,51 @@ async function runTests(): Promise<void> {
 			);
 		}
 
-		// Test 3b: MODIFY status change only (should fire only for status change)
+		// Test 3b: MODIFY status change only (should fire for all 3 status changes)
 		totalTests++;
 		try {
 			assert.strictEqual(
 				modifyStatusChange.length,
-				1,
-				`Expected 1 modify-status-change handler (status change only), got ${modifyStatusChange.length}`,
+				3,
+				`Expected 3 modify-status-change handlers (3 status changes), got ${modifyStatusChange.length}`,
 			);
 			console.log("  ✅ MODIFY status change targeted: PASSED");
 			passedTests++;
 		} catch (error) {
 			console.log(
 				`  ❌ MODIFY status change targeted: FAILED - ${(error as Error).message}`,
+			);
+		}
+
+		// Test 3c: MODIFY status pending->active (value-based filtering)
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyPendingToActive.length,
+				1,
+				`Expected 1 modify-status-pending-to-active handler, got ${modifyPendingToActive.length}`,
+			);
+			console.log("  ✅ MODIFY status pending->active (value filter): PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ MODIFY status pending->active (value filter): FAILED - ${(error as Error).message}`,
+			);
+		}
+
+		// Test 3d: MODIFY status to completed (newFieldValue filtering)
+		totalTests++;
+		try {
+			assert.strictEqual(
+				modifyToCompleted.length,
+				1,
+				`Expected 1 modify-status-to-completed handler, got ${modifyToCompleted.length}`,
+			);
+			console.log("  ✅ MODIFY status to completed (newFieldValue filter): PASSED");
+			passedTests++;
+		} catch (error) {
+			console.log(
+				`  ❌ MODIFY status to completed (newFieldValue filter): FAILED - ${(error as Error).message}`,
 			);
 		}
 

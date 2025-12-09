@@ -100,6 +100,47 @@ router.onModify(
 	{ attribute: "status" },
 );
 
+// Value-based filtering - status changes FROM "pending" TO "active"
+router.onModify(
+	isTestItem,
+	async (_oldImage, newImage, ctx) => {
+		await sendVerification({
+			operationType: "MODIFY",
+			isDeferred: false,
+			pk: newImage.pk,
+			sk: newImage.sk,
+			timestamp: Date.now(),
+			eventId: ctx.eventID,
+			handlerType: "modify-status-pending-to-active",
+		});
+	},
+	{
+		attribute: "status",
+		oldFieldValue: "pending",
+		newFieldValue: "active",
+	},
+);
+
+// Value-based filtering - status changes TO "completed" (from any value)
+router.onModify(
+	isTestItem,
+	async (_oldImage, newImage, ctx) => {
+		await sendVerification({
+			operationType: "MODIFY",
+			isDeferred: false,
+			pk: newImage.pk,
+			sk: newImage.sk,
+			timestamp: Date.now(),
+			eventId: ctx.eventID,
+			handlerType: "modify-status-to-completed",
+		});
+	},
+	{
+		attribute: "status",
+		newFieldValue: "completed",
+	},
+);
+
 // Immediate REMOVE handler
 router.onRemove(isTestItem, async (oldImage, ctx) => {
 	await sendVerification({
