@@ -4,7 +4,7 @@ A TypeScript library providing Express-like routing for DynamoDB Stream events. 
 
 ## Features
 
-- **Express-like API** - Familiar `.onInsert()`, `.onModify()`, `.onRemove()`, `.use()` methods
+- **Express-like API** - Familiar `.onInsert()`, `.onModify()`, `.onRemove()`, `.onTTLRemove()`, `.use()` methods
 - **Type Safety** - Full TypeScript inference from discriminators and parsers
 - **Flexible Matching** - Use type guards or schema validators (Zod, etc.)
 - **Attribute Filtering** - React to specific attribute changes in MODIFY events
@@ -13,6 +13,7 @@ A TypeScript library providing Express-like routing for DynamoDB Stream events. 
 - **Deferred Processing** - Automatically enqueue to SQS for async processing
 - **Global Tables** - Filter records by region
 - **Partial Batch Failures** - Lambda retry support via `reportBatchItemFailures`
+- **TTL Removal Handling** - Separate handlers for TTL-triggered vs user-initiated deletions
 
 ## Installation
 
@@ -169,6 +170,108 @@ router.onModify(
 - Arrays (DynamoDB Lists)
 - Sets (DynamoDB String Sets, Number Sets, Binary Sets)
 
+## Batch Processing
+## TTL Removal Events
+
+DynamoDB TTL (Time To Live) automatically deletes expired items, creating REMOVE events in the stream with special `userIdentity` metadata. The router provides dedicated support for handling TTL removals separately from user-initiated deletions.
+
+### Identifying TTL Removals
+
+TTL-triggered removals have:
+- `eventName: "REMOVE"`
+- `userIdentity.type === "Service"`
+- `userIdentity.principalId === "dynamodb.amazonaws.com"`
+
+### Using onTTLRemove
+
+Register handlers specifically for TTL-triggered removals:
+
+```typescript
+interface Session {
+  pk: string;
+  sk: string;
+  userId: string;
+  sessionId: string;
+  ttl: number;
+}
+
+const isSession = (record: unknown): record is Session =>
+  typeof record === 'object' &&
+  record !== null &&
+  'sk' in record &&
+  (record as Session).sk.startsWith('session#');
+
+// Handle TTL-triggered session expirations
+router.onTTLRemove(isSession, async (oldImage, ctx) => {
+  console.log(`Session expired via TTL: ${oldImage.sessionId}`);
+  await cleanupExpiredSession(oldImage);
+});
+```
+
+### Excluding TTL from onRemove
+
+Use `excludeTTL: true` to handle only user-initiated deletions:
+
+```typescript
+// Handle explicit deletions (logout) only, not TTL expirations
+router.onRemove(isSession, async (oldImage, ctx) => {
+  console.log(`User logged out: ${oldImage.userId}`);
+  await handleUserLogout(oldImage);
+}, { excludeTTL: true });
+```
+
+### Default Behavior
+
+By default, `onRemove` handlers receive **both** TTL-triggered and user-initiated removals:
+
+```typescript
+// This receives all REMOVE events (TTL + user-initiated)
+router.onRemove(isUser, async (oldImage, ctx) => {
+  console.log(`User removed: ${oldImage.userId}`);
+});
+
+// Equivalent to:
+router.onRemove(isUser, handler, { excludeTTL: false });
+```
+
+### Separate Handlers for Different Removal Types
+
+```typescript
+const isSession = (record: unknown): record is Session => /* ... */;
+
+// TTL expirations only
+router.onTTLRemove(isSession, async (oldImage, ctx) => {
+  console.log('Session expired (TTL)');
+  await trackSessionExpiration(oldImage);
+});
+
+// User-initiated deletions only
+router.onRemove(isSession, async (oldImage, ctx) => {
+  console.log('User logged out (explicit)');
+  await trackUserLogout(oldImage);
+}, { excludeTTL: true });
+```
+
+### Batch Processing with TTL Removals
+
+TTL removal handlers support batch processing just like regular handlers:
+
+```typescript
+router.onTTLRemove(isSession, async (records) => {
+  console.log(`Processing ${records.length} expired sessions`);
+  const sessionIds = records.map(r => r.oldImage.sessionId);
+  await batchCleanupExpiredSessions(sessionIds);
+}, { batch: true });
+```
+
+### Use Cases
+
+- **Metrics**: Track session expirations vs explicit logouts separately
+- **Cleanup**: Apply different cleanup logic for TTL vs user-initiated deletes
+- **Auditing**: Log different event types for compliance requirements
+- **Notifications**: Send alerts based on deletion type (e.g., warn on unexpected expirations)
+
+See [examples/ttl-removal.ts](./examples/ttl-removal.ts) for a complete example.
 ## Batch Processing
 
 Process multiple records together:
@@ -348,6 +451,7 @@ class StreamRouter<V extends StreamViewType = 'NEW_AND_OLD_IMAGES'> {
   onInsert<T>(matcher, handler, options?): HandlerRegistration;
   onModify<T>(matcher, handler, options?): HandlerRegistration;
   onRemove<T>(matcher, handler, options?): HandlerRegistration;
+  onTTLRemove<T>(matcher, handler, options?): HandlerRegistration;
   use(middleware): this;
   
   process(event, options?): Promise<ProcessingResult | BatchItemFailuresResponse>;
@@ -364,6 +468,7 @@ interface HandlerRegistration {
   onInsert(...): HandlerRegistration;
   onModify(...): HandlerRegistration;
   onRemove(...): HandlerRegistration;
+  onTTLRemove(...): HandlerRegistration;
 }
 ```
 
