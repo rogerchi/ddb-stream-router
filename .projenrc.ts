@@ -133,8 +133,8 @@ project.compileTask.exec('echo \'{"type": "commonjs"}\' > cjs/package.json');
 
 new Vitest(project);
 
-new TextFile(project, '.nvmrc', {
-	lines: ['24']
-})
+new TextFile(project, ".nvmrc", {
+	lines: ["24"],
+});
 
 project.synth();
