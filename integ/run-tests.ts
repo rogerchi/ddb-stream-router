@@ -123,6 +123,8 @@ async function runTests(): Promise<void> {
 	const categoryResults: CategoryResult[] = [];
 	const timestamp = Date.now();
 
+	// Purge the verification queue once at the start
+	await purgeQueue(sqsClient, VerificationQueueUrl);
 
 	// ============================================================================
 	// CATEGORY 1: BASIC OPERATIONS
@@ -134,7 +136,6 @@ async function runTests(): Promise<void> {
 	const basicPk = `TEST#${timestamp}`;
 
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 
 		await ddbClient.send(new PutItemCommand({
 			TableName,
@@ -228,8 +229,6 @@ async function runTests(): Promise<void> {
 
 	const batchResults: TestResult[] = [];
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		const batchPks = [`BATCH#${timestamp}-1`, `BATCH#${timestamp}-2`, `BATCH#${timestamp}-3`];
 		for (const pk of batchPks) {
 			await ddbClient.send(new PutItemCommand({
@@ -267,8 +266,6 @@ async function runTests(): Promise<void> {
 	const mwResults: TestResult[] = [];
 	const mwPk = `MW#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: mwPk }, sk: { S: "v0" }, data: { S: "test" } },
@@ -289,7 +286,6 @@ async function runTests(): Promise<void> {
 		await ddbClient.send(new DeleteItemCommand({ TableName, Key: { pk: { S: mwPk }, sk: { S: "v0" } } }));
 
 		// Test filtering
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 		const mwSkipPk = `MW#${timestamp}-skip`;
 		await ddbClient.send(new PutItemCommand({
 			TableName,
@@ -323,8 +319,6 @@ async function runTests(): Promise<void> {
 	const nestedResults: TestResult[] = [];
 	const nestedPk = `NESTED#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: {
@@ -354,7 +348,6 @@ async function runTests(): Promise<void> {
 		catch (e) { nestedResults.push({ name: "Nested parent path", passed: false, error: (e as Error).message }); }
 
 		// Test sibling isolation
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 		await ddbClient.send(new UpdateItemCommand({
 			TableName,
 			Key: { pk: { S: nestedPk }, sk: { S: "v0" } },
@@ -390,8 +383,6 @@ async function runTests(): Promise<void> {
 	const clearedResults: TestResult[] = [];
 	const clearedPk = `CLEARED#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: clearedPk }, sk: { S: "v0" }, email: { S: "test@example.com" } },
@@ -417,7 +408,6 @@ async function runTests(): Promise<void> {
 		}
 
 		// Test value change (should NOT trigger field_cleared)
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 		const clearedPk2 = `CLEARED#${timestamp}-2`;
 		await ddbClient.send(new PutItemCommand({
 			TableName,
@@ -462,8 +452,6 @@ async function runTests(): Promise<void> {
 	const zodResults: TestResult[] = [];
 	const zodPk = `ZOD#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: zodPk }, sk: { S: "v0" }, requiredField: { S: "test" }, numericField: { N: "42" } },
@@ -482,7 +470,6 @@ async function runTests(): Promise<void> {
 		}
 
 		// Test invalid schema
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 		const zodInvalidPk = `ZOD#${timestamp}-invalid`;
 		await ddbClient.send(new PutItemCommand({
 			TableName,
@@ -516,8 +503,6 @@ async function runTests(): Promise<void> {
 	const valTargetResults: TestResult[] = [];
 	const valTargetPk = `VALTARGET#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: valTargetPk }, sk: { S: "v0" }, validatedField: { S: "present" } },
@@ -547,7 +532,6 @@ async function runTests(): Promise<void> {
 		catch (e) { valTargetResults.push({ name: "validationTarget: both (match)", passed: false, error: (e as Error).message }); }
 
 		// Test "both" when only one matches
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 		await ddbClient.send(new UpdateItemCommand({
 			TableName,
 			Key: { pk: { S: valTargetPk }, sk: { S: "v0" } },
@@ -581,8 +565,6 @@ async function runTests(): Promise<void> {
 	const multiChangeResults: TestResult[] = [];
 	const multiChangePk = `MULTICHANGE#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: multiChangePk }, sk: { S: "v0" }, email: { S: "test@example.com" } },
@@ -608,7 +590,6 @@ async function runTests(): Promise<void> {
 		}
 
 		// Test field_cleared
-		await purgeQueue(sqsClient, VerificationQueueUrl);
 		await ddbClient.send(new UpdateItemCommand({
 			TableName,
 			Key: { pk: { S: multiChangePk }, sk: { S: "v0" } },
@@ -642,8 +623,6 @@ async function runTests(): Promise<void> {
 	const ttlResults: TestResult[] = [];
 	const ttlPk = `TTL#${timestamp}`;
 	try {
-		await purgeQueue(sqsClient, VerificationQueueUrl);
-
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: ttlPk }, sk: { S: "v0" }, data: { S: "test" } },
