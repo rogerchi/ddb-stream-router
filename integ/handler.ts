@@ -119,7 +119,7 @@ async function sendVerification(message: VerificationMessage): Promise<void> {
 	);
 }
 
-// Track middleware execution
+// Track middleware execution per record
 let middlewareLog: string[] = [];
 
 // Create router
@@ -133,7 +133,9 @@ const router = new StreamRouter({
 // MIDDLEWARE
 // ============================================================================
 
+// First middleware resets the log for each new record
 router.use(async (_record: DynamoDBRecord, next: () => Promise<void>) => {
+	middlewareLog = []; // Reset at start of each record
 	middlewareLog.push("middleware-1");
 	await next();
 });
@@ -307,7 +309,6 @@ router.onInsert(isMiddlewareItem, async (newImage, ctx) => {
 		handlerType: "middleware-test",
 		middlewareExecuted: [...middlewareLog],
 	});
-	middlewareLog = [];
 });
 
 // ============================================================================
