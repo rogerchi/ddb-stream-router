@@ -23,6 +23,7 @@
       "!.gitignore",
       "!.mergify.yml",
       "!.npmignore",
+      "!.nvmrc",
       "!.projen/deps.json",
       "!.projen/files.json",
       "!.projen/tasks.json",
