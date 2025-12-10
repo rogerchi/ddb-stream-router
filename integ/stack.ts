@@ -63,6 +63,7 @@ class IntegrationTestStack extends cdk.Stack {
 			new lambdaEventSources.DynamoEventSource(table, {
 				startingPosition: lambda.StartingPosition.TRIM_HORIZON,
 				batchSize: 10,
+				maxBatchingWindow: cdk.Duration.seconds(10), // Wait up to 10s to batch records
 				retryAttempts: 2,
 				reportBatchItemFailures: true,
 			}),

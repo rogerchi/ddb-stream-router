@@ -246,32 +246,48 @@ async function runTests(): Promise<void> {
 	console.log("-".repeat(60));
 
 	const batchResults: TestResult[] = [];
+	const batchPk = `BATCH#${timestamp}`; // Same PK ensures items are in same stream shard
+	const batchSks = ["v1", "v2", "v3"]; // Different SKs for different items
 	try {
-		console.log("  Creating 3 batch items...");
-		const batchPks = [`BATCH#${timestamp}-1`, `BATCH#${timestamp}-2`, `BATCH#${timestamp}-3`];
-		for (const pk of batchPks) {
+		console.log("  Creating 3 batch items with same PK (within 10s batching window)...");
+		// Create all items rapidly so they get batched together
+		for (const sk of batchSks) {
 			await ddbClient.send(new PutItemCommand({
 				TableName,
-				Item: { pk: { S: pk }, sk: { S: "v0" }, status: { S: "pending" } },
+				Item: { pk: { S: batchPk }, sk: { S: sk }, status: { S: "pending" } },
 			}));
 		}
-		await delay(5000);
+		// Wait for batching window (10s) plus processing time
+		console.log("  Waiting for batching window (15s)...");
+		await delay(15000);
 
 		console.log("  Waiting for batch verification messages...");
 		const batchMsgs = await drainVerificationQueue(sqsClient, VerificationQueueUrl, 1, 60000);
-		console.log(`  Received ${batchMsgs.length} messages`);
+		console.log(`  Received ${batchMsgs.length} batch handler messages`);
 		const batchByStatus = batchMsgs.filter((m) => m.handlerType === "batch-by-status");
-		const totalCount = batchByStatus.reduce((sum, m) => sum + (m.batchCount ?? 0), 0);
 
+		// Validate we got batched records (should be 1 message with batchCount >= 2, ideally 3)
 		try {
-			assert.strictEqual(totalCount, 3, "Total batch count should be 3");
-			batchResults.push({ name: "Batch by attribute value", passed: true });
+			assert.ok(batchByStatus.length >= 1, "Should receive at least 1 batch message");
+			const maxBatchCount = Math.max(...batchByStatus.map((m) => m.batchCount ?? 0));
+			console.log(`  Max batch count in a single message: ${maxBatchCount}`);
+			assert.ok(maxBatchCount >= 2, `Should have batched at least 2 records together, got ${maxBatchCount}`);
+			batchResults.push({ name: "Batch grouping (multiple records)", passed: true });
 		} catch (e) {
-			batchResults.push({ name: "Batch by attribute value", passed: false, error: (e as Error).message });
+			batchResults.push({ name: "Batch grouping (multiple records)", passed: false, error: (e as Error).message });
 		}
 
-		for (const pk of batchPks) {
-			await ddbClient.send(new DeleteItemCommand({ TableName, Key: { pk: { S: pk }, sk: { S: "v0" } } }));
+		// Validate total count across all batch messages
+		const totalCount = batchByStatus.reduce((sum, m) => sum + (m.batchCount ?? 0), 0);
+		try {
+			assert.strictEqual(totalCount, 3, "Total batch count should be 3");
+			batchResults.push({ name: "Batch total count", passed: true });
+		} catch (e) {
+			batchResults.push({ name: "Batch total count", passed: false, error: (e as Error).message });
+		}
+
+		for (const sk of batchSks) {
+			await ddbClient.send(new DeleteItemCommand({ TableName, Key: { pk: { S: batchPk }, sk: { S: sk } } }));
 		}
 	} catch (error) {
 		batchResults.push({ name: "Batch processing", passed: false, error: (error as Error).message });
