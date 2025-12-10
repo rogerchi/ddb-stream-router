@@ -123,9 +123,6 @@ async function runTests(): Promise<void> {
 	const categoryResults: CategoryResult[] = [];
 	const timestamp = Date.now();
 
-	// Purge the verification queue once at the start
-	await purgeQueue(sqsClient, VerificationQueueUrl);
-
 	// ============================================================================
 	// CATEGORY 1: BASIC OPERATIONS
 	// ============================================================================
@@ -136,7 +133,8 @@ async function runTests(): Promise<void> {
 	const basicPk = `TEST#${timestamp}`;
 
 	try {
-
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Creating test item and performing operations...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: basicPk }, sk: { S: "v0" }, data: { S: "initial" } },
@@ -184,7 +182,9 @@ async function runTests(): Promise<void> {
 			Key: { pk: { S: basicPk }, sk: { S: "v0" } },
 		}));
 
+		console.log("  Waiting for verification messages...");
 		const msgs = await drainVerificationQueue(sqsClient, VerificationQueueUrl, 12, 90000);
+		console.log(`  Received ${msgs.length} messages`);
 		const testMsgs = msgs.filter((m) => m.pk === basicPk);
 
 		const insertImm = testMsgs.filter((m) => m.operationType === "INSERT" && !m.isDeferred);
@@ -229,6 +229,8 @@ async function runTests(): Promise<void> {
 
 	const batchResults: TestResult[] = [];
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Creating 3 batch items...");
 		const batchPks = [`BATCH#${timestamp}-1`, `BATCH#${timestamp}-2`, `BATCH#${timestamp}-3`];
 		for (const pk of batchPks) {
 			await ddbClient.send(new PutItemCommand({
@@ -238,7 +240,9 @@ async function runTests(): Promise<void> {
 		}
 		await delay(5000);
 
+		console.log("  Waiting for batch verification messages...");
 		const batchMsgs = await drainVerificationQueue(sqsClient, VerificationQueueUrl, 1, 60000);
+		console.log(`  Received ${batchMsgs.length} messages`);
 		const batchByStatus = batchMsgs.filter((m) => m.handlerType === "batch-by-status");
 		const totalCount = batchByStatus.reduce((sum, m) => sum + (m.batchCount ?? 0), 0);
 
@@ -266,6 +270,8 @@ async function runTests(): Promise<void> {
 	const mwResults: TestResult[] = [];
 	const mwPk = `MW#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing middleware execution order...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: mwPk }, sk: { S: "v0" }, data: { S: "test" } },
@@ -286,6 +292,7 @@ async function runTests(): Promise<void> {
 		await ddbClient.send(new DeleteItemCommand({ TableName, Key: { pk: { S: mwPk }, sk: { S: "v0" } } }));
 
 		// Test filtering
+		console.log("  Testing middleware filtering...");
 		const mwSkipPk = `MW#${timestamp}-skip`;
 		await ddbClient.send(new PutItemCommand({
 			TableName,
@@ -319,6 +326,8 @@ async function runTests(): Promise<void> {
 	const nestedResults: TestResult[] = [];
 	const nestedPk = `NESTED#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing nested attribute changes...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: {
@@ -348,6 +357,7 @@ async function runTests(): Promise<void> {
 		catch (e) { nestedResults.push({ name: "Nested parent path", passed: false, error: (e as Error).message }); }
 
 		// Test sibling isolation
+		console.log("  Testing sibling isolation...");
 		await ddbClient.send(new UpdateItemCommand({
 			TableName,
 			Key: { pk: { S: nestedPk }, sk: { S: "v0" } },
@@ -383,6 +393,8 @@ async function runTests(): Promise<void> {
 	const clearedResults: TestResult[] = [];
 	const clearedPk = `CLEARED#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing field cleared detection...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: clearedPk }, sk: { S: "v0" }, email: { S: "test@example.com" } },
@@ -452,6 +464,8 @@ async function runTests(): Promise<void> {
 	const zodResults: TestResult[] = [];
 	const zodPk = `ZOD#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing Zod schema validation...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: zodPk }, sk: { S: "v0" }, requiredField: { S: "test" }, numericField: { N: "42" } },
@@ -503,6 +517,8 @@ async function runTests(): Promise<void> {
 	const valTargetResults: TestResult[] = [];
 	const valTargetPk = `VALTARGET#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing validation targets...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: valTargetPk }, sk: { S: "v0" }, validatedField: { S: "present" } },
@@ -565,6 +581,8 @@ async function runTests(): Promise<void> {
 	const multiChangeResults: TestResult[] = [];
 	const multiChangePk = `MULTICHANGE#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing multiple change types...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: multiChangePk }, sk: { S: "v0" }, email: { S: "test@example.com" } },
@@ -623,6 +641,8 @@ async function runTests(): Promise<void> {
 	const ttlResults: TestResult[] = [];
 	const ttlPk = `TTL#${timestamp}`;
 	try {
+		await purgeQueue(sqsClient, VerificationQueueUrl);
+		console.log("  Testing TTL removal handling...");
 		await ddbClient.send(new PutItemCommand({
 			TableName,
 			Item: { pk: { S: ttlPk }, sk: { S: "v0" }, data: { S: "test" } },
