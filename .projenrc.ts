@@ -1,5 +1,5 @@
 import { Vitest } from "@nikovirtala/projen-vitest";
-import { typescript } from "projen";
+import { TextFile, typescript } from "projen";
 import { NpmAccess } from "projen/lib/javascript";
 
 const project = new typescript.TypeScriptProject({
@@ -132,5 +132,9 @@ project.compileTask.exec(
 project.compileTask.exec('echo \'{"type": "commonjs"}\' > cjs/package.json');
 
 new Vitest(project);
+
+new TextFile(project, ".nvmrc", {
+	lines: ["24"],
+});
 
 project.synth();

@@ -1,0 +1,152 @@
+# Implementation Plan
+
+- [x] 1. Extend CDK stack for TTL support
+  - [x] 1.1 Add TTL attribute to DynamoDB table
+    - Add `timeToLiveAttribute: "ttl"` to table configuration
+    - _Requirements: 3.1, 3.4_
+
+- [x] 2. Extend verification message interface
+  - [x] 2.1 Add new fields to VerificationMessage interface
+    - Add batchCount, batchKey, middlewareExecuted, validationTarget, changeTypes, nestedPath, parsedWithZod, fieldCleared fields
+    - Update sendVerification helper to support new fields
+    - _Requirements: 1.3, 2.4, 4.1, 5.1, 6.1, 7.1, 8.1, 10.2_
+
+- [x] 3. Implement batch processing handlers
+  - [x] 3.1 Add batch handler with attribute-based grouping
+    - Register onInsert batch handler with batchKey: "status"
+    - Send verification with batchCount
+    - _Requirements: 1.1, 1.3_
+  - [x] 3.2 Add batch handler with primary key grouping
+    - Register onModify batch handler with batchKey: { partitionKey: "pk", sortKey: "sk" }
+    - Send verification with batchCount
+    - _Requirements: 1.2_
+
+- [x] 4. Implement middleware handlers
+  - [x] 4.1 Add logging middleware
+    - Register middleware that tracks execution order
+    - _Requirements: 2.1_
+  - [x] 4.2 Add filtering middleware
+    - Register middleware that skips records with skipProcessing=true
+    - _Requirements: 2.2_
+  - [x] 4.3 Add enrichment middleware
+    - Register middleware that adds metadata to records
+    - _Requirements: 2.3_
+  - [x] 4.4 Add middleware verification handler
+    - Register handler that reports middleware execution in verification message
+    - _Requirements: 2.4_
+
+- [x] 5. Implement TTL removal handlers
+  - [x] 5.1 Add onTTLRemove handler
+    - Register onTTLRemove handler for test items
+    - Send verification with operationType: "TTL_REMOVE"
+    - _Requirements: 3.1_
+  - [x] 5.2 Add onRemove handler with excludeTTL option
+    - Register onRemove handler with excludeTTL: true
+    - Send verification with handlerType: "remove-exclude-ttl"
+    - _Requirements: 3.3, 3.4_
+
+- [x] 6. Implement nested attribute handlers
+  - [x] 6.1 Add handler for specific nested path
+    - Register onModify handler with attribute: "preferences.theme"
+    - Send verification with nestedPath
+    - _Requirements: 4.1_
+  - [x] 6.2 Add handler for parent path
+    - Register onModify handler with attribute: "preferences"
+    - Send verification with nestedPath
+    - _Requirements: 4.3_
+
+- [x] 7. Implement field cleared handlers
+  - [x] 7.1 Add handler for field_cleared change type
+    - Register onModify handler with attribute: "email", changeType: "field_cleared"
+    - Send verification with fieldCleared
+    - _Requirements: 5.1, 5.2_
+
+- [x] 8. Implement Zod validation handlers
+  - [x] 8.1 Add Zod schema and handler
+    - Define ZodTestSchema with pk starting with "ZOD#"
+    - Register onInsert handler with Zod schema
+    - Send verification with parsedWithZod: true
+    - _Requirements: 6.1, 6.2, 6.3_
+
+- [x] 9. Implement validation target handlers
+  - [x] 9.1 Add handler with validationTarget: "newImage"
+    - Register onModify handler with validationTarget: "newImage"
+    - Use discriminator that checks for specific field
+    - _Requirements: 7.1_
+  - [x] 9.2 Add handler with validationTarget: "oldImage"
+    - Register onModify handler with validationTarget: "oldImage"
+    - Use discriminator that checks for specific field
+    - _Requirements: 7.2_
+  - [x] 9.3 Add handler with validationTarget: "both"
+    - Register onModify handler with validationTarget: "both"
+    - Use discriminator that checks for specific field
+    - _Requirements: 7.3, 7.4_
+
+- [x] 10. Implement multiple change types handlers
+  - [x] 10.1 Add handler with array of change types
+    - Register onModify handler with changeType: ["field_cleared", "changed_attribute"]
+    - Send verification with changeTypes array
+    - _Requirements: 8.1, 8.2, 8.3_
+
+- [x] 11. Extend test runner with new test categories
+  - [x] 11.1 Refactor test runner into category-based structure
+    - Create TestCategory and TestCase interfaces
+    - Organize existing tests into "Basic Operations" category
+    - _Requirements: 10.4_
+  - [x] 11.2 Add batch processing tests
+    - Test batch by attribute value (create 3 items with same status)
+    - Test batch by primary key (modify same item multiple times)
+    - Test different batch keys (create items with different statuses)
+    - _Requirements: 1.1, 1.2, 1.3, 1.4_
+  - [x] 11.3 Add middleware tests
+    - Test execution order (verify middleware order in message)
+    - Test filtering (create item with skipProcessing=true, verify no handler)
+    - _Requirements: 2.1, 2.2, 2.4_
+  - [x] 11.4 Add TTL removal tests
+    - Test onTTLRemove (create item with TTL, wait for expiration)
+    - Test excludeTTL (delete item, verify excludeTTL handler fires)
+    - Test onTTLRemove skip (delete item, verify onTTLRemove doesn't fire)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+  - [x] 11.5 Add nested attribute tests
+    - Test specific nested path (change preferences.theme)
+    - Test sibling isolation (change preferences.notifications, verify theme handler doesn't fire)
+    - Test parent path (change any preference, verify parent handler fires)
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+  - [x] 11.6 Add field cleared tests
+    - Test set to null (update email to null)
+    - Test value change (change email from "a" to "b", verify no fire)
+    - _Requirements: 5.1, 5.3_
+  - [x] 11.7 Add Zod validation tests
+    - Test valid schema (create item matching ZodTestSchema)
+    - Test invalid schema (create item not matching, verify no handler)
+    - _Requirements: 6.1, 6.2, 6.4_
+  - [x] 11.8 Add validation target tests
+    - Test newImage (modify where only new matches)
+    - Test oldImage (modify where only old matches)
+    - Test both (modify where both match)
+    - Test both partial (modify where only one matches, verify no fire)
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - [x] 11.9 Add multiple change types tests
+    - Test OR logic with field_cleared
+    - Test OR logic with changed_attribute
+    - _Requirements: 8.1, 8.3_
+
+- [x] 12. Implement test reporting improvements
+  - [x] 12.1 Add category-based result reporting
+    - Group test results by category
+    - Display pass/fail counts per category
+    - _Requirements: 10.1, 10.4_
+  - [x] 12.2 Add detailed failure reporting
+    - Show expected vs actual values on failure
+    - Include relevant verification messages in failure output
+    - _Requirements: 10.2_
+
+- [ ] 13. Update integration test documentation
+  - [x] 13.1 Update integ/README.md
+    - Document new test categories
+    - Document TTL testing considerations
+    - Update architecture diagram
+    - _Requirements: 10.4_
+
+- [ ] 14. Checkpoint - Verify all integration tests pass
+  - Ensure all tests pass, ask the user if questions arise.

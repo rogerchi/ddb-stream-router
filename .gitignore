@@ -53,4 +53,5 @@ esm/
 types/
 /coverage/
 !/vitest.config.ts
+!/.nvmrc
 !/.projenrc.ts

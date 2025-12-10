@@ -11,13 +11,14 @@ class IntegrationTestStack extends cdk.Stack {
 	constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
 
-		// DynamoDB table with stream enabled
+		// DynamoDB table with stream enabled and TTL for testing
 		const table = new dynamodb.Table(this, "TestTable", {
 			partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
 			sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
 			stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
 			removalPolicy: cdk.RemovalPolicy.DESTROY,
 			billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+			timeToLiveAttribute: "ttl", // Enable TTL for TTL removal testing
 		});
 
 		// Standard SQS queue for deferred processing
@@ -62,6 +63,7 @@ class IntegrationTestStack extends cdk.Stack {
 			new lambdaEventSources.DynamoEventSource(table, {
 				startingPosition: lambda.StartingPosition.TRIM_HORIZON,
 				batchSize: 10,
+				maxBatchingWindow: cdk.Duration.seconds(10), // Wait up to 10s to batch records
 				retryAttempts: 2,
 				reportBatchItemFailures: true,
 			}),
